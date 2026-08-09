@@ -3,7 +3,7 @@ name: review
 description: Reviews code using pi CLI with read-only tools. Delegates the review to pi (dev/pi) with a structured review rubric, running in read-only mode to prevent accidental edits. By default reviews uncommitted working tree changes (git diff HEAD) with pi restricted to the read tool; explicit targets (--branch/--diff/@file/PR) or --explore widen pi to read,grep,find,ls. Use when the user asks to "review code with pi", "pi review", "have pi review", "let pi review", or invokes /pi:review.
 user-invocable: true
 argument-hint: "[@target] [--branch BRANCH] [--diff RANGE] [--endpoint ENDPOINT] [--model MODEL] [--thinking LEVEL] [--explore] | --edit-config [--local|--shared|--global] | --list-models"
-allowed-tools: ["Bash(git:*)", "Bash(jq:*)", "Bash(ls:*)", "Bash(find:*)", "Bash(cat:*)", "Bash(mkdir:*)", "Bash(echo:*)", "Bash(command:*)", "Bash(mktemp:*)", "Bash(rm:*)", "Bash(mv:*)", "Bash(sed:*)", "Bash(grep:*)", "Bash(head:*)", "Bash(gh:*)", "Bash(bash:*)", "Bash(pi:*)", "Read", "Grep", "Glob"]
+allowed-tools: ["Task", "Bash(git:*)", "Bash(jq:*)", "Bash(ls:*)", "Bash(find:*)", "Bash(cat:*)", "Bash(mkdir:*)", "Bash(echo:*)", "Bash(command:*)", "Bash(mktemp:*)", "Bash(rm:*)", "Bash(mv:*)", "Bash(sed:*)", "Bash(grep:*)", "Bash(head:*)", "Bash(awk:*)", "Bash(tr:*)", "Bash(gh:*)", "Bash(bash:*)", "Bash(vi:*)", "Read", "Grep", "Glob"]
 ---
 # CRITICAL: pi Code Review
 
@@ -59,7 +59,7 @@ Parse `$ARGUMENTS` to extract the review target and optional flags. The target i
 |------|-------------|-----------------|
 | `--endpoint` | Endpoint key name (must match a key in settings `endpoints`) | CLI > settings > `defaultEndpoint` |
 | `--model` | Model ID to use for this review | CLI > settings > (endpoint's first model) |
-| `--thinking` | Thinking level (off/minimal/low/medium/high/xhigh/max) | CLI > settings > `low` |
+| `--thinking` | Thinking level (off/minimal/low/medium/high/xhigh/max) | CLI > settings > `max` |
 | `--explore` | Force full read-only exploration tools (`read,grep,find,ls`) even for the default working-tree review. Without this, the default review gets `read` only. | CLI flag |
 
 ### Resolution order per flag
@@ -80,20 +80,7 @@ For each flag, resolve the value by checking CLI flag first, then settings file,
 
 ### Base URL resolution
 
-If the resolved endpoint has a `baseUrl`, write it to `~/.pi/agent/models.json` for the resolved provider before running pi:
-
-```bash
-if [ -n "$BASE_URL" ]; then
-  mkdir -p "$HOME/.pi/agent"
-  EXISTING=$(cat "$HOME/.pi/agent/models.json" 2>/dev/null || echo '{}')
-  echo "$EXISTING" | jq --arg provider "$PROVIDER" \
-    --arg baseUrl "$BASE_URL" \
-    '.providers[$provider] = (.providers[$provider] // {}) |
-     .providers[$provider].baseUrl = $baseUrl' \
-    > "$HOME/.pi/agent/models.json.tmp" && \
-    mv "$HOME/.pi/agent/models.json.tmp" "$HOME/.pi/agent/models.json"
-fi
-```
+The pi-agent handles `baseUrl` — it conditionally writes it into the agent-dir `models.json` (pi has no `--base-url` flag) only when it differs from the existing value. The skill just passes the resolved `BASE_URL` to the agent; it does not write models.json itself.
 
 ## Review Target
 
@@ -125,33 +112,7 @@ When the user passes `@filepath`, pass those file paths directly to pi as `@file
 
 ## Review Rubric (Embedded in Prompt)
 
-The review prompt given to pi must cover these dimensions. Embed them as part of the task description, not as `--append-system-prompt`:
-
-### 1. Correctness & Logic
-- Does the code do what it intends? Any off-by-one, race conditions, null pointer, or type errors?
-- Are error paths handled (not just the happy path)?
-- Are async operations properly awaited or chained?
-
-### 2. Code Quality & Maintainability
-- Naming: do names reveal intent? (Mysterious Name)
-- Duplication: is the same logic repeated? (Duplicated Code)
-- Coupling: does a module reach into another's internals? (Feature Envy)
-- Abstraction: is there speculative generality or missing domain types? (Speculative Generality, Primitive Obsession)
-- Size: are functions/classes too large? Do they do one thing?
-
-### 3. Security
-- Are user inputs validated/sanitized?
-- Any hardcoded secrets, tokens, or credentials?
-- Any injection vectors (SQL, command, path traversal)?
-
-### 4. Architecture & Design
-- Does the change follow the project's established patterns?
-- Does it introduce unnecessary dependencies?
-- Is the change scoped appropriately (not shotgun surgery)?
-
-### 5. Testing
-- Are there tests for the changed code?
-- Do tests cover edge cases and error paths?
+The review prompt given to pi must cover these dimensions. Embed them as part of the task description, not as `--append-system-prompt`. See `references/rubric.md` for the full five-dimension rubric — the TASK prompt in the agent launch embeds a condensed version of it.
 
 ## Context Collection
 
@@ -159,15 +120,13 @@ The review prompt given to pi must cover these dimensions. Embed them as part of
 
 Always pass the CLAUDE.md files as system prompt context so pi understands the project and user conventions. `--append-system-prompt` accepts file paths directly — pi reads them automatically.
 
+**CRITICAL: do not accumulate the flags into a space-joined variable and expand it unquoted.** Under zsh (the default shell on macOS) that expansion is a single argument, so pi receives the literal string `--append-system-prompt /path/CLAUDE.md` as one token and appends it as text instead of reading the file. The pi-agent assembles the command as an array, so the skill only needs to hand the agent the resolved context files:
+
 ```bash
-# Build CLAUDE.md context — pass file paths, pi reads them
-CLAUDE_CONTEXT=""
-if [ -f "$HOME/.claude/CLAUDE.md" ]; then
-  CLAUDE_CONTEXT="$CLAUDE_CONTEXT --append-system-prompt $HOME/.claude/CLAUDE.md"
-fi
-if [ -f "CLAUDE.md" ]; then
-  CLAUDE_CONTEXT="$CLAUDE_CONTEXT --append-system-prompt CLAUDE.md"
-fi
+# Collect CLAUDE.md paths to pass to the agent as separate --append-system-prompt args
+APPEND_PATHS=()
+[ -f "$HOME/.claude/CLAUDE.md" ] && APPEND_PATHS+=("$HOME/.claude/CLAUDE.md")
+[ -f "CLAUDE.md" ] && APPEND_PATHS+=("CLAUDE.md")
 ```
 
 ### 2. Git Context
@@ -187,7 +146,7 @@ Capture the diff for the resolved target into a temp file, then pass its path vi
 DIFF_FILE=$(mktemp /tmp/pi-review-diff.XXXXXX)
 HAS_EXPLICIT_TARGET=""
 TASK_TEXT=""        # free-text task description, if any
-FILE_REFS=""        # @file references, if any
+FILE_REFS=()        # @file references, one per array element
 
 # No target (default): uncommitted working tree changes (staged + unstaged vs HEAD)
 git diff HEAD > "$DIFF_FILE"
@@ -217,7 +176,11 @@ fi
 if [[ "$ARGUMENTS" == *"@"* ]]; then
   HAS_EXPLICIT_TARGET="1"
   : > "$DIFF_FILE"       # clear: @file reviews pass files, not a diff
-  FILE_REFS=$(echo "$ARGUMENTS" | grep -oE '@[^ ]+' | tr '\n' ' ')
+  # Read one @ref per line into the array (avoids zsh word-splitting pitfalls)
+  FILE_REFS=()
+  while IFS= read -r ref; do
+    [ -n "$ref" ] && FILE_REFS+=("$ref")
+  done < <(echo "$ARGUMENTS" | grep -oE '@[^ ]+' || true)
 fi
 
 # Free-text task description: only when there is no explicit target and no @file refs.
@@ -228,20 +191,19 @@ if [ -z "$HAS_EXPLICIT_TARGET" ] && [[ "$ARGUMENTS" != *"@"* ]]; then
 fi
 ```
 
-Then build the diff context — this MUST be run as actual commands in the same shell, not left as prose:
+Then build the diff context — this MUST be run as actual commands in the same shell, not left as prose. Collect context file paths into `APPEND_PATHS` (CLAUDE.md files from step 1, plus the diff when present) so the pi-agent emits each as its own `--append-system-prompt` argument:
 
 ```bash
-# Diff context: only add the --append-system-prompt for the diff when a diff exists
-DIFF_CONTEXT=""
+# Context files: CLAUDE.md paths (from "Context Collection") plus the diff when non-empty
 if [ -s "$DIFF_FILE" ]; then
-  DIFF_CONTEXT="--append-system-prompt $DIFF_FILE"
+  APPEND_PATHS+=("$DIFF_FILE")
 fi
 ```
 
 **Empty-diff guard (default target only):** if `git diff HEAD` produces no output and no explicit target was given (`HAS_EXPLICIT_TARGET` empty), the working tree is clean — report "No uncommitted changes to review — the working tree is clean. Use `/pi:review --branch <name>`, `/pi:review --diff <range>`, or `/pi:review <PR>` to review committed code." and stop before invoking pi. Run the guard as a command:
 
 ```bash
-if [ ! -s "$DIFF_FILE" ] && [ -z "$HAS_EXPLICIT_TARGET" ]; then
+if [ ! -s "$DIFF_FILE" ] && [ -z "$HAS_EXPLICIT_TARGET" ] && [ -z "$TASK_TEXT" ]; then
   echo "No uncommitted changes to review — the working tree is clean. Use --branch, --diff, or a PR number."
   exit 0
 fi
@@ -249,22 +211,11 @@ fi
 
 ## Execution
 
-Always use `Bash` with `run_in_background` — pi -p is a single-shot command, not a continuous stream. **Do not add a shell `timeout`** — reviews can be heavy. **Do not use Monitor.**
+Do NOT run pi directly. After resolving settings and capturing the review target, launch the dedicated `pi:pi-agent` execution layer with the Task tool. It builds the pi command, runs it in the background, and returns pi's stdout.
+
+**PREREQUISITE:** run the "Reading settings" snippet from `references/settings.md` first — it defines `$PROVIDER`, `$MODEL`, `$API_KEY`, `$THINKING`. Then capture the diff (see "Context Collection") into `$DIFF_FILE`/`$GIT_FILE`, and resolve `$TOOLS`:
 
 ```bash
-# PREREQUISITE: run the "Reading settings" snippet from references/settings.md first.
-# It defines $PROVIDER, $MODEL, $API_KEY, $THINKING used below. Without it, pi has no
-# provider/model and fails. Run those commands in the SAME shell as this block.
-
-# Build CLAUDE.md context — pass file paths, pi reads them
-CLAUDE_CONTEXT=""
-if [ -f "$HOME/.claude/CLAUDE.md" ]; then
-  CLAUDE_CONTEXT="$CLAUDE_CONTEXT --append-system-prompt $HOME/.claude/CLAUDE.md"
-fi
-if [ -f "CLAUDE.md" ]; then
-  CLAUDE_CONTEXT="$CLAUDE_CONTEXT --append-system-prompt CLAUDE.md"
-fi
-
 # Tool selection — see "Review Target" resolution logic
 # Default (no target): read only, so pi cannot scan the codebase or run git.
 # Explicit target or --explore: read,grep,find,ls. Never include bash.
@@ -277,23 +228,31 @@ fi
 # Collect git context (status/stat/log/branch) into a temp file, passed like the diff
 GIT_FILE=$(mktemp /tmp/pi-review-git.XXXXXX)
 { git status --short; git diff --stat; git log --oneline -20; git branch --show-current; } > "$GIT_FILE"
-
-# Build the pi review command with resolved variables
-# $DIFF_CONTEXT / $GIT_CONTEXT carry the captured files via --append-system-prompt; empty when not applicable
-# $FILE_REFS carries @file references; empty unless the user named files
-# $TASK_TEXT carries the free-text task description; empty otherwise
-PI_CMD="pi -p --provider $PROVIDER --model $MODEL${API_KEY:+ --api-key $API_KEY} --thinking ${THINKING:-low} --tools $TOOLS --no-session --no-context-files --approve $CLAUDE_CONTEXT $DIFF_CONTEXT --append-system-prompt $GIT_FILE $FILE_REFS ${TASK_TEXT:+$TASK_TEXT }\"Review the code in the provided diff${TASK_TEXT:+ (task: $TASK_TEXT)}. Use your tools only to read the files mentioned in the diff for context — do NOT search the rest of the codebase, do NOT run git. Focus on correctness, code quality, security, architecture, and testing. For each issue found, report: file:line: severity (HIGH/MEDIUM/LOW) + description + suggested fix. Group findings by severity. If no issues found, explicitly state that the code looks clean.\""
-
-# Run via run_in_background (no trailing & — the tool backgrounds it; pi stdout must be captured)
-# Clean up the temp files when pi exits
-bash -c "$PI_CMD 2>&1; rm -f '$DIFF_FILE' '$GIT_FILE'"
+APPEND_PATHS+=("$GIT_FILE")   # git context is a second append (besides CLAUDE.md + diff)
 ```
+
+Then launch `pi:pi-agent` with the Task tool, passing:
+
+```
+MODE: review
+TASK: Review the code in the provided diff${TASK_TEXT:+ (task: $TASK_TEXT)}. Use your tools only to read the files mentioned in the diff for context — do NOT search the rest of the codebase, do NOT run git. Focus on correctness, code quality, security, architecture, and testing. For each issue found, report: file:line: severity (HIGH/MEDIUM/LOW) + description + suggested fix. Group findings by severity. If no issues found, explicitly state that the code looks clean.
+PROVIDER: <resolved from settings>
+MODEL: <resolved from settings>
+ENDPOINT: <resolved endpoint key or empty — lets the pi-agent read credentials from the right endpoint (non-secret)>
+THINKING: <resolved, default max>
+TOOLS: <$TOOLS — read, or read,grep,find,ls>
+APPEND_PATHS: <$APPEND_PATHS — CLAUDE.md paths + GIT_FILE + DIFF_FILE; the agent emits each as its own --append-system-prompt>
+FILE_REFS: <$FILE_REFS — @file args, one per line; omit if none>
+CLEANUP_FILES: <$DIFF_FILE $GIT_FILE — the agent removes them when pi exits>
+```
+
+**Do NOT pass `API_KEY` or `BASE_URL`** — the pi-agent reads them from the settings files itself (so the actual key/URL never enters the model's context). The pi-agent emits `--append-system-prompt` for every `APPEND_PATHS` entry, writes `baseUrl` to the agent-dir `models.json` when it resolves one, runs pi in the background with `--no-session --no-context-files --approve`, and reports pi's stdout — which is the review text.
 
 ## Handling Output
 
 ### CRITICAL: pi's stdout is the review text
 
-Unlike `/pi:delegate` where pi edits files, review mode uses read-only tools (`read`, or `read,grep,find,ls` with an explicit target) — pi cannot write files or run bash. **Its stdout IS the review output.** Capture it and present it to the user.
+Unlike `/pi:delegate` where pi edits files, review mode uses read-only tools (`read`, or `read,grep,find,ls` with an explicit target) — pi cannot write files or run bash. **Its stdout IS the review output.** The pi-agent returns this stdout; present it to the user.
 
 ### On Success (exit code 0)
 
@@ -305,7 +264,7 @@ Present pi's output as the review findings. Format it clearly:
 
 ### On Error (exit code 1+)
 
-Show the error message from stderr. Common causes:
+Show the error message from the pi-agent's report. Common causes:
 - pi not configured (no API key)
 - Provider/model not available
 - Task interrupted or killed
@@ -381,8 +340,9 @@ Overrides the default `read`-only restriction to `read,grep,find,ls` for the wor
 - pi runs with **read-only tools** — it cannot edit files or run bash.
 - **Default review is restricted to `--tools read`** — pi can read files mentioned in the diff but cannot `grep`/`find`/`ls` the codebase or run `git`, so it cannot silently review the whole repo. Explicit targets (`--branch`, `--diff`, `@filepath`, PR number) or `--explore` expand it to `read,grep,find,ls`.
 - **Default behavior reviews uncommitted working tree changes** (`git diff HEAD`, staged + unstaged). If the working tree is clean, the skill reports it and stops — use `--branch <name>`, `--diff <range>`, or a PR number to review committed code.
-- **CLAUDE.md context is always passed** via `--append-system-prompt` as file paths — `~/.claude/CLAUDE.md` (user global) and `./CLAUDE.md` (project). pi reads them automatically.
-- **pi only knows built-in provider names** (`openai`, `anthropic`, `google`, etc.). The settings `endpoints` map is just for user convenience. The skill writes `baseUrl` to `~/.pi/agent/models.json` under the endpoint's `provider` field, then passes `--provider <provider>` to pi.
+- **Never run pi directly — always delegate to `pi:pi-agent`.** The agent is the plugin's single execution path and owns backgrounding, verification, and error handling.
+- **CLAUDE.md context is always passed** by pi-agent via `--append-system-prompt` as file paths — `~/.claude/CLAUDE.md` (user global) and `./CLAUDE.md` (project). pi reads them automatically.
+- **pi only knows built-in provider names** (`openai`, `anthropic`, `google`, etc.). The settings `endpoints` map is just for user convenience. The pi-agent writes `baseUrl` to the agent-dir `models.json` (default `~/.pi/agent/models.json`, redirectable via `PI_CODING_AGENT_DIR`/`AGENT_DIR`) under the endpoint's `provider` field, then passes `--provider <provider>` to pi.
 - No shell `timeout` — reviews can be heavy and should run to completion.
 - The review rubric is embedded in the task description, not `--append-system-prompt`, to keep it in pi's context window.
 - Git context and diffs go into `--append-system-prompt` as structured context.

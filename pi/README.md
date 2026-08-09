@@ -16,15 +16,15 @@ Bridges [pi](https://github.com/earendil-works/pi) (dev/pi), a minimal terminal 
 ### `/pi:delegate` — Delegate a task to pi
 
 ```
-/pi:delegate <task description> [--provider PROVIDER] [--model MODEL] [--api-key KEY] [--thinking LEVEL] [--tools TOOL_LIST] [--exclude-tools TOOL_LIST] [--no-files] [--no-git]
+/pi:delegate <task description> [--endpoint ENDPOINT] [--provider PROVIDER] [--model MODEL] [--api-key KEY] [--thinking LEVEL] [--tools TOOL_LIST] [--exclude-tools TOOL_LIST] [--no-git]
 ```
 
 **Examples:**
 
 ```
 /pi:delegate refactor this component --model claude-sonnet-4-20250514
-/pi:delegate write unit tests --provider openai --model gemini-3.6-flash-high
-/pi:delegate explain how React reconciliation works --no-files
+/pi:delegate write unit tests --endpoint local-proxy --model gemini-3.6-flash-high
+/pi:delegate explain how React reconciliation works --no-git
 ```
 
 ### `/pi:delegate --edit-config` — Edit persistent settings
@@ -41,7 +41,7 @@ Project personal overrides project shared, which overrides global personal. CLI 
 
 ### `/pi:review` — Review code with pi
 
-Read-only code review via pi CLI. Runs pi with `--tools read,grep,find,ls` to prevent edits.
+Read-only code review via pi CLI. By default reviews uncommitted working-tree changes (`git diff HEAD`) with pi restricted to `--tools read` (it cannot explore the repo); explicit targets (`--branch`, `--diff`, `@file`, PR) or `--explore` widen it to `read,grep,find,ls`.
 
 ```
 /pi:review [@target] [--branch BRANCH] [--diff RANGE] [--endpoint ENDPOINT] [--model MODEL] [--thinking LEVEL] | --edit-config [--local|--shared|--global] | --list-models
@@ -50,7 +50,7 @@ Read-only code review via pi CLI. Runs pi with `--tools read,grep,find,ls` to pr
 **Examples:**
 
 ```
-/pi:review                        Review the whole working directory (pi uses its own tools to explore)
+/pi:review                        Review uncommitted working-tree changes (git diff HEAD, read-only)
 /pi:review --branch feat/new      Review diff against main
 /pi:review --diff HEAD~5..HEAD    Review recent commits
 /pi:review @src/index.ts          Review a specific file
@@ -83,32 +83,34 @@ After setup, both `/pi:delegate` and `/pi:review` will use these settings by def
 
 ## How It Works
 
+Both `/pi:delegate` and `/pi:review` delegate execution to the dedicated `pi:pi-agent` — the plugin's single execution layer. It builds the pi command, runs it in the background (no timeout), and verifies the outcome.
+
 ### `/pi:delegate`
 
 1. The skill checks if `pi` is installed globally.
-2. It reads persistent settings from `.claude/pi.local.json` (project) and `~/.claude/pi.local.json` (global), then merges with CLI flags. Custom base URLs are configured via `~/.pi/agent/models.json` — written automatically by the skill when `baseUrl` is set in the config file.
-3. It collects context from the current working directory (relevant files, git status, directory structure).
-4. It calls `pi -p` (print mode) via `run_in_background` with the collected context and your task description. No timeout — pi tasks run to completion naturally.
-5. pi executes the task — its real output is **file edits in the working directory**, not stdout text. Always check `git diff --stat` after completion.
+2. It reads persistent settings from `.claude/pi.local.json` (project), `.claude/pi.json` (shared), and `~/.claude/pi.local.json` (global), then merges with CLI flags — using the same **named-endpoint format** as `/pi:review`. Legacy flat fields still work as a fallback.
+3. It resolves the endpoint, then launches `pi:pi-agent` with the resolved provider/model and the task description.
+4. `pi:pi-agent` collects context (CLAUDE.md, git status), writes custom base URLs to the agent-dir `models.json`, and calls `pi -p` (print mode) via `run_in_background`.
+5. pi executes the task — its real output is **file edits in the working directory**, not stdout text. The agent verifies via `git diff --stat`.
 
 ### `/pi:review`
 
-1. Same checks and settings chain as `/pi:delegate`, but uses a **multi-provider** settings format.
-2. Supports `--list-models` to display all configured providers and their models.
-3. Runs `pi -p` with `--tools read,grep,find,ls` (read-only) — pi cannot edit files.
-4. pi's stdout **is** the review output — present it directly to the user.
+1. Same checks, settings chain, and endpoint format as `/pi:delegate`.
+2. Supports `--list-models` to display all configured endpoints and their models.
+3. Captures the review target (diff/branch/PR/file), then delegates to `pi:pi-agent`, which runs `pi -p` with `--tools read` (or `read,grep,find,ls` for explicit targets) — pi cannot edit files.
+4. pi's stdout **is** the review output — the agent returns it and you present it directly to the user.
 
 ## Flags
 
 | Flag | Description | Source Priority |
 |------|-------------|-----------------|
-| `--provider` | LLM provider (anthropic, openai, google, etc.) | CLI > settings > pi's default |
+| `--endpoint` | Endpoint key name (must match a key in settings `endpoints`) | CLI > settings > `defaultEndpoint` |
+| `--provider` | LLM provider (anthropic, openai, google, etc.) | CLI > settings > endpoint/provider > pi's default |
 | `--model` | Model pattern or ID | CLI > settings > pi's default |
 | `--api-key` | API key for the provider | CLI > settings > env var or config file |
-| `--thinking` | Thinking level (off/minimal/low/medium/high/xhigh/max) | CLI > settings > `low` |
+| `--thinking` | Thinking level (off/minimal/low/medium/high/xhigh/max) | CLI > settings > `max` |
 | `--tools` | Comma-separated allowed tools list | CLI > settings > `read,bash,write,edit,grep,find,ls` |
 | `--exclude-tools` | Comma-separated blocked tools list | CLI > settings > (none) |
-| `--no-files` | Skip collecting file context | CLI > settings > `false` |
 | `--no-git` | Skip collecting git context | CLI > settings > `false` |
 
 ## Persistent Settings
@@ -123,39 +125,34 @@ Three-tier JSON preference files (priority high to low):
 
 CLI flags override all three. Run `/pi:delegate --edit-config` or `/pi:review --edit-config` to quickly create or edit your project settings.
 
-Both skills share the same settings files, but use different formats:
+Both skills share the same settings files **and the same named-endpoint format**:
 
-- **`/pi:delegate`** uses flat format (single provider + model):
-  ```json
-  {
-    "provider": "openai",
-    "model": "gemini-3.6-flash-high",
-    "baseUrl": "http://10.10.0.195:8317/v1"
-  }
-  ```
+```json
+{
+  "endpoints": {
+    "local-proxy": {
+      "provider": "openai",
+      "baseUrl": "http://10.10.0.195:8317/v1",
+      "models": ["gemini-3.6-flash-high", "gemini-3.6-pro"]
+    }
+  },
+  "defaultEndpoint": "local-proxy",
+  "defaultModel": "gemini-3.6-flash-high",
+  "thinking": "max"
+}
+```
 
-- **`/pi:review`** uses multi-endpoint format (named endpoints, each with `provider` + optional `baseUrl` + `models`):
-  ```json
-  {
-    "endpoints": {
-      "local-proxy": {
-        "provider": "openai",
-        "baseUrl": "http://10.10.0.195:8317/v1",
-        "models": ["gemini-3.6-flash-high", "gemini-3.6-pro"]
-      }
-    },
-    "defaultEndpoint": "local-proxy",
-    "defaultModel": "gemini-3.6-flash-high"
-  }
-  ```
+Each endpoint has `provider` (required), optional `baseUrl`/`apiKey`, and a `models` array. Both `/pi:delegate` and `/pi:review` resolve the active endpoint via `defaultEndpoint` (or a `--endpoint`/`--model` CLI flag), falling back to the first `models` entry when `defaultModel` is unset.
 
 Values can reference environment variables using `$VAR` or `${VAR}` syntax — they are resolved at read time. This is useful for API keys: `"apiKey": "$MY_API_KEY"` reads from the environment variable at runtime.
 
-You can include both formats in the same file — the `jq` merge will combine them. The review skill reads `endpoints` and `defaultEndpoint`, while the delegate skill reads `provider` and `model`.
+Legacy flat fields (`provider`/`model`/`baseUrl`/`apiKey`) are still honored by `/pi:delegate` as a fallback when no `defaultEndpoint` is set, so old configs keep working — but new setups should use the endpoint format above.
 
 ## Design
 
 - **Two entry points**: `/pi:delegate` for coding tasks (file edits), `/pi:review` for read-only code review.
-- **Context-aware**: The skill automatically collects file and git context from the current project.
+- **Dedicated execution layer**: Both commands delegate to `pi:pi-agent`, which builds the pi command, runs it in the background, and verifies the outcome — the main context stays clean and the user never interacts with pi directly.
+- **Unified config**: Both commands share the same named-endpoint settings format and the same settings chain.
+- **Context-aware**: The skill collects file and git context from the current project.
 - **Non-interactive**: All pi tasks run in `-p` (print) mode for clean, text-based output.
 - **Isolated**: Uses `--no-session --no-context-files --approve` to avoid conflicts with the current project's state.

@@ -2,8 +2,8 @@
 name: setup
 description: Guides the user through configuring pi — provider, model, base URL, and API key. Use when the user asks to "setup pi", "configure pi", "pi setup", "set up pi provider", "pi config", "change pi model", or invokes /pi:setup. Only run this skill when the user explicitly requests pi setup — never auto-invoke.
 user-invocable: true
-argument-hint: "[--provider PROVIDER] [--model MODEL] [--api-key KEY] | --edit-config | --list-models | --test | --doctor"
-allowed-tools: ["Bash(pi:*)", "Bash(jq:*)", "Bash(cat:*)", "Bash(mkdir:*)", "Bash(echo:*)", "Bash(command:*)", "Bash(ls:*)", "Read", "Write"]
+argument-hint: "[--endpoint NAME] [--provider PROVIDER] [--model MODEL] [--base-url URL] [--api-key KEY] | --edit-config | --list-models | --test | --doctor"
+allowed-tools: ["Bash(pi:*)", "Bash(jq:*)", "Bash(cat:*)", "Bash(mkdir:*)", "Bash(mv:*)", "Bash(echo:*)", "Bash(command:*)", "Bash(ls:*)", "Bash(vi:*)", "Read", "Write"]
 ---
 
 # CRITICAL: User setup only — do not auto-invoke
@@ -36,30 +36,40 @@ Both `/pi:delegate` and `/pi:review` read from the same settings chain:
 
 1. **CLI flag** (from `$ARGUMENTS`)
 2. **`.claude/pi.local.json`** — project-specific overrides, gitignored
-3. **`~/.claude/pi.local.json`** — global user-wide defaults
-4. **pi's own defaults** (pi decides its own default provider and model)
+3. **`.claude/pi.json`** — project shared defaults, committed
+4. **`~/.claude/pi.local.json`** — global user-wide defaults
+5. **pi's own defaults** (pi decides its own default provider and model)
 
 This skill writes to `~/.claude/pi.local.json` (global, takes effect for all projects).
 
 ### Settings file format
 
-Settings files only override what the user wants to change. All fields are optional:
+The settings file uses the **named-endpoint format** shared by `/pi:delegate` and `/pi:review`. All fields are optional — only override what you want to change.
 
 Values can reference environment variables using `$VAR` or `${VAR}` syntax — they are resolved at read time by `/pi:delegate` and `/pi:review`. This is useful for API keys: `"apiKey": "$MY_API_KEY"` reads from the environment variable at runtime.
 
 ```json
 {
-  "provider": "",
-  "model": "",
-  "baseUrl": "",
-  "apiKey": "",
-  "thinking": "",
-  "tools": "",
-  "excludeTools": "",
-  "noFiles": false,
-  "noGit": false
+  "endpoints": {
+    "local-proxy": {
+      "provider": "openai",
+      "baseUrl": "http://10.10.0.195:8317/v1",
+      "models": ["gemini-3.6-flash-high", "gemini-3.6-pro"]
+    }
+  },
+  "defaultEndpoint": "local-proxy",
+  "defaultModel": "gemini-3.6-flash-high",
+  "thinking": "max"
 }
 ```
+
+Each endpoint key has:
+- `provider` (required) — pi's known provider name (`openai`, `anthropic`, `google`, etc.)
+- `baseUrl` (optional) — custom API endpoint; when present it is written to `~/.pi/agent/models.json` at runtime
+- `apiKey` (optional) — API key or `$ENV_VAR` reference
+- `models` — array of model IDs available via this endpoint
+
+Legacy flat fields (`provider`/`model`/`baseUrl`/`apiKey`) are still honored by the delegate skill as a fallback when no `defaultEndpoint` is set, but new setups should use the endpoint format.
 
 ### `--list-models` flag
 
@@ -74,7 +84,7 @@ else
   echo "(not configured — pi uses its defaults)"
 fi
 echo ""
-echo "To configure, run: /pi:setup --provider <name> --model <id> [--base-url <url>]"
+echo "To configure, run: /pi:setup --endpoint <name> --provider <name> --model <id> [--base-url <url>]"
 echo "Or use interactive mode: /pi:setup --edit-config"
 ```
 
@@ -82,10 +92,20 @@ Then stop — do not proceed to setup.
 
 ### `--test` flag
 
-When `$ARGUMENTS` includes `--test`, run a quick connectivity test:
+When `$ARGUMENTS` includes `--test`, run a quick connectivity test. Build the command as an array so each flag is a distinct argument under both bash and zsh (zsh does not word-split an unquoted `${PROVIDER:+--provider ...}` expansion):
 
 ```bash
-pi -p --provider "$PROVIDER" --model "$MODEL" --thinking low --no-session --no-context-files --approve "Reply with exactly: OK. Model: <model-name>"
+CMD=(pi -p)
+# Provider: use the resolved PROVIDER; else if a custom BASE_URL is set, use the
+# models.json key (PROVIDER_KEY, default openai) so the probe reaches the custom endpoint.
+if [ -n "$PROVIDER" ]; then
+  CMD+=(--provider "$PROVIDER")
+elif [ -n "$BASE_URL" ]; then
+  CMD+=(--provider "${PROVIDER_KEY:-openai}")
+fi
+CMD+=(--model "$MODEL" --thinking low --no-session --no-context-files --approve "Reply with exactly: OK. Model: <model-name>")
+# </dev/null: pi -p hangs on a terminal/pipe stdin (mis-detects interactive) — force non-interactive.
+"${CMD[@]}" </dev/null
 ```
 
 Report the result: "pi responded successfully with model <name>" on exit 0, or the error on failure.
@@ -111,15 +131,18 @@ If `$ARGUMENTS` contains flags, parse them directly:
 
 | Flag | Description |
 |------|-------------|
+| `--endpoint` | Endpoint key name (default `local-proxy`) |
 | `--provider` | LLM provider name (`openai`, `anthropic`, `google`, etc.) |
 | `--model` | Model ID (e.g. `gemini-3.6-flash-high`, `claude-sonnet-4-20250514`) |
+| `--base-url` | Custom API endpoint URL (OpenAI-compatible) |
 | `--api-key` | API key for the provider (stored in settings file, or reference `$ENV_VAR`) |
 
 If no flags are provided, use the AskUserQuestion tool to ask the user:
 
 1. **Provider**: What provider do you want to use? (Options: `openai`, `anthropic`, `google`, or "Other" for custom)
 2. **Model**: What model ID? (e.g. `gemini-3.6-flash-high`, `claude-sonnet-4-20250514`)
-3. **API Key** (optional): API key or `$ENV_VAR` reference? (leave empty to use environment variables)
+3. **Base URL** (optional): Custom endpoint URL, or empty for the provider's default
+4. **API Key** (optional): API key or `$ENV_VAR` reference? (leave empty to use environment variables)
 
 ### Step 3: Write configuration
 
@@ -132,25 +155,78 @@ if [ -f "$HOME/.claude/pi.local.json" ]; then
   EXISTING=$(cat "$HOME/.claude/pi.local.json")
 fi
 
-# Merge with new values (only override non-empty fields)
+# Endpoint target: an explicit --endpoint names the key to write; otherwise reconfigure
+# the existing defaultEndpoint (so a plain /pi:setup reaches the endpoint the skills read).
+ENDPOINT_IS_EXPLICIT="0"
+if [[ "$ARGUMENTS" == *"--endpoint"* ]]; then
+  ENDPOINT_IS_EXPLICIT="1"
+  ENDPOINT="${ENDPOINT:-local-proxy}"
+else
+  ENDPOINT="${ENDPOINT:-$(echo "$EXISTING" | jq -r '.defaultEndpoint // "local-proxy"')}"
+fi
+
+# Merge into the endpoints map — only override non-empty fields.
+# When an explicit --endpoint is given, make it the default so provider and model
+# resolve consistently (see defaultModel note below).
 echo "$EXISTING" | jq \
+  --arg e "$ENDPOINT" \
+  --arg explicit "${ENDPOINT_IS_EXPLICIT:-}" \
   --arg provider "${PROVIDER:-}" \
   --arg model "${MODEL:-}" \
   --arg baseUrl "${BASE_URL:-}" \
   --arg apiKey "${API_KEY:-}" \
-  '.provider = (if $provider != "" then $provider else .provider end) |
-   .model = (if $model != "" then $model else .model end) |
-   .baseUrl = (if $baseUrl != "" then $baseUrl else .baseUrl end) |
-   .apiKey = (if $apiKey != "" then $apiKey else .apiKey end)' \
-  > "$HOME/.claude/pi.local.json"
+  '.endpoints[$e] = (.endpoints[$e] // {provider: $provider}) |
+   .endpoints[$e].provider = (if $provider != "" then $provider else .endpoints[$e].provider end) |
+   .endpoints[$e].baseUrl = (if $baseUrl != "" then $baseUrl else .endpoints[$e].baseUrl // "" end) |
+   .endpoints[$e].apiKey = (if $apiKey != "" then $apiKey else .endpoints[$e].apiKey // "" end) |
+   .endpoints[$e].models = ((.endpoints[$e].models // []) + [($model | select(. != ""))] | unique) |
+   .defaultEndpoint = (if $explicit == "1" then $e else (.defaultEndpoint // $e) end) |
+   .defaultModel = (if $model != "" then $model else .defaultModel // "" end)' \
+  > "$HOME/.claude/pi.local.json.tmp" && \
+  mv "$HOME/.claude/pi.local.json.tmp" "$HOME/.claude/pi.local.json"
 ```
 
 ### Step 4: Verify with `--test`
 
-Run the test automatically after writing config:
+Run the test automatically after writing config. pi has no `--base-url` flag — a custom endpoint goes through `~/.pi/agent/models.json`. Write it there first (idempotent: register baseUrl + model, skip when unchanged), then test:
 
 ```bash
-pi -p --provider "$PROVIDER" --model "$MODEL" ${BASE_URL:+--base-url "$BASE_URL"} --thinking low --no-session --no-context-files --approve "Reply with exactly: OK. Model: <model-name>"
+# Resolve the agent dir the same way pi-agent does, so setup writes to the
+# endpoint pi actually reads (matches AGENT_DIR / PI_CODING_AGENT_DIR overrides).
+AGENT_DIR="${AGENT_DIR:-${PI_CODING_AGENT_DIR:-$HOME/.pi/agent}}"
+
+# Ensure the endpoint is in the agent-dir models.json (pi reads endpoints from there)
+# Use PROVIDER_KEY for the write so $PROVIDER (possibly empty = pi's default) is untouched.
+if [ -n "$BASE_URL" ]; then
+  PROVIDER_KEY="${PROVIDER:-openai}"
+  mkdir -p "$AGENT_DIR"
+  EXISTING=$(cat "$AGENT_DIR/models.json" 2>/dev/null || echo '{}')
+  NEW=$(echo "$EXISTING" | jq -c --arg provider "$PROVIDER_KEY" --arg baseUrl "$BASE_URL" --arg model "$MODEL" \
+    '.providers[$provider] = (.providers[$provider] // {}) |
+     .providers[$provider].baseUrl = $baseUrl |
+     if $model != "" then
+       (.providers[$provider].models //= []) |
+       .providers[$provider].models |= (
+         if any(.id == $model) then . else . + [{id: $model}] end
+       )
+     else . end')
+  if [ "$NEW" != "$EXISTING" ]; then
+    echo "$NEW" > "$AGENT_DIR/models.json.tmp" && mv "$AGENT_DIR/models.json.tmp" "$AGENT_DIR/models.json"
+  fi
+fi
+
+CMD=(pi -p)
+# Provider: use the resolved PROVIDER; else if a custom BASE_URL is set, use the
+# models.json key (PROVIDER_KEY, default openai) so the probe reaches the custom endpoint.
+if [ -n "$PROVIDER" ]; then
+  CMD+=(--provider "$PROVIDER")
+elif [ -n "$BASE_URL" ]; then
+  CMD+=(--provider "${PROVIDER_KEY:-openai}")
+fi
+CMD+=(--model "$MODEL" --thinking low --no-session --no-context-files --approve "Reply with exactly: OK. Model: <model-name>")
+# Pin the probe to the agent dir we just wrote (matches pi-agent's run pattern).
+# </dev/null: pi -p hangs on a terminal/pipe stdin (mis-detects interactive).
+PI_CODING_AGENT_DIR="$AGENT_DIR" "${CMD[@]}" </dev/null
 ```
 
 Report success or failure to the user.
@@ -163,8 +239,8 @@ Show the final configuration and tell the user:
 pi configured successfully. Both `/pi:delegate` and `/pi:review` will use these settings by default.
 
 To override for a single invocation:
-  /pi:delegate <task> --provider <name> --model <id>
-  /pi:review --model <id>
+  /pi:delegate <task> --endpoint <name> --model <id>
+  /pi:review --endpoint <name> --model <id>
 
 To edit manually:
   /pi:setup --edit-config
@@ -177,13 +253,19 @@ To view current config:
 
 ### OpenAI-compatible endpoint (with custom base URL)
 
-Configure `baseUrl` in `~/.claude/pi.local.json`:
+Configure an endpoint in `~/.claude/pi.local.json`:
 
 ```json
 {
-  "provider": "openai",
-  "model": "gemini-3.6-flash-high",
-  "baseUrl": "http://10.10.0.195:8317/v1"
+  "endpoints": {
+    "local-proxy": {
+      "provider": "openai",
+      "baseUrl": "http://10.10.0.195:8317/v1",
+      "models": ["gemini-3.6-flash-high", "gemini-3.6-pro"]
+    }
+  },
+  "defaultEndpoint": "local-proxy",
+  "defaultModel": "gemini-3.6-flash-high"
 }
 ```
 
@@ -192,13 +274,13 @@ Or via `/pi:setup --edit-config --global`.
 ### Anthropic direct
 
 ```bash
-/pi:setup --provider anthropic --model claude-sonnet-4-20250514
+/pi:setup --endpoint anthropic-direct --provider anthropic --model claude-sonnet-4-20250514
 ```
 
 ### Google Gemini direct
 
 ```bash
-/pi:setup --provider google --model gemini-3.6-flash-high
+/pi:setup --endpoint google --provider google --model gemini-3.6-flash-high
 ```
 
 ## References
