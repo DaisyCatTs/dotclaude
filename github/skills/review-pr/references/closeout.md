@@ -28,11 +28,12 @@ bash ${CLAUDE_PLUGIN_ROOT}/skills/review-pr/scripts/arm-closeout.sh "$PR" --auto
 
 Arming writes `.git/review-pr-closeout.json` (resolved via `git rev-parse --git-dir`, so it
 works from any cwd in the repo). While the file exists, the plugin's Stop hook
-(`hooks/closeout-stop.sh`) blocks every turn end with a message naming the PR and the missing
-step — the merge ask cannot be skipped by a premature or hallucinated stop. This is the
-enforcement net for the whole closeout: turn-end stays blocked until the decision resolves
-(bounded by Claude Code's 8-consecutive-block cap per turn; a user interrupt also bypasses
-it — the hook's message always names the clear script as the escape hatch).
+(`hooks/closeout-stop.sh`) blocks one turn-end per user turn with a message naming the PR and
+the missing step — the merge ask cannot be skipped by a premature or hallucinated stop, and
+the reminder does not loop: the hook passes through (`stop_hook_active`) on the second
+end-attempt of the same turn, so the turn ends once the reminder is injected. A user
+interrupt also bypasses it — the hook's message always names the clear script as the escape
+hatch.
 
 Clear it the moment the decision is resolved:
 
@@ -266,8 +267,8 @@ stop — do not retry with different flags, do not force-push, and do not re-arm
 the user decides next. If the user interrupts and you resume, and the gate no longer holds (a
 new comment arrived, CI re-ran red), do not auto-merge — re-check the gate, and if escalate
 items now exist, fall back to the explicit question. Either way, clear the closeout state
-once the opt-in is resolved (completed or aborted) — while it stays armed, every turn end is
-blocked until the decision is settled.
+once the opt-in is resolved (completed or aborted) — while it stays armed, one turn-end per
+user turn is blocked until the decision is settled.
 
 **On a successful auto-merge**, proceed to "After a successful merge" hygiene exactly as the
 explicit-choice path would. `TaskStop` the Monitor.
@@ -379,16 +380,16 @@ holding). If the user interrupts and you resume, skip steps already completed; i
 either (the ask gates it). Under `--auto-merge`, if the gate no longer holds on resume (new
 comment or CI re-ran red), do not auto-merge — re-check and fall back to the explicit
 question if escalate items now exist. If an interrupt left the closeout state armed, clear
-it when the closeout is resolved (ask answered or opt-in consumed); while armed, every
-turn end is blocked until then.
+it when the closeout is resolved (ask answered or opt-in consumed); while armed, one turn-end
+per user turn is blocked until then.
 
 ## Do not
 
 - Do not ask to merge or post the summary while comments are still open or CI is still red —
   the gate must hold first, and the summary would claim a merge-ready state that is not true.
 - Do not end the turn with the closeout state armed — the Stop hook blocks it. Clear it
-  (`clear-closeout.sh "$PR"`) as soon as the decision resolves; while it stays armed, every
-  turn end is blocked with a message naming the PR and the missing step.
+  (`clear-closeout.sh "$PR"`) as soon as the decision resolves; while it stays armed, one
+  turn-end per user turn is blocked with a message naming the PR and the missing step.
 - Do not run the ceremony (summary comment + body rewrite) before the user's merge choice —
   the ask comes first, and "Don't merge" skips the ceremony entirely.
 - Do not rewrite the title/body to claim something the diff does not deliver.
