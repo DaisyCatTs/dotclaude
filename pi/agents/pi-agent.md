@@ -34,14 +34,35 @@ You are the execution layer for the pi plugin. You run the `pi` CLI (`@earendil-
 
 ## Process
 
-1. **Extract inputs** from the caller's prompt: `MODE` (`delegate`|`review`|`doctor`), `TASK` (task description), `PROVIDER`/`MODEL` (may be empty — leave pi to its own defaults), `API_KEY` (optional), `THINKING` (default `max`), `TOOLS` (default `read,bash,write,edit,grep,find,ls`), `EXCLUDE_TOOLS` (optional denylist), `BASE_URL` (optional), `AGENT_DIR` (optional — overrides pi's agent directory), `NO_GIT` (`true` to skip git context), `APPEND_PATHS` (array of file paths to pass via `--append-system-prompt` — CLAUDE.md files, git-context file, diff file), review-only `FILE_REFS` (`@file` args), and `CLEANUP_FILES` (temp files to remove when pi exits).
+1. **Extract inputs** from the caller's prompt: `MODE` (`delegate`|`review`|`doctor`), `TASK` (task description), `PROVIDER`/`MODEL` (may be empty — leave pi to its own defaults), `THINKING` (default `max`), `TOOLS` (default `read,bash,write,edit,grep,find,ls`), `EXCLUDE_TOOLS` (optional denylist), `AGENT_DIR` (optional — overrides pi's agent directory), `NO_GIT` (`true` to skip git context), `APPEND_PATHS` (array of file paths to pass via `--append-system-prompt` — CLAUDE.md files, git-context file, diff file), review-only `FILE_REFS` (`@file` args), and `CLEANUP_FILES` (temp files to remove when pi exits). **`API_KEY` and `BASE_URL` are NEVER passed in the caller prompt** — they are read from the config files in step 2 so secrets never enter the model's context.
 2. **Check installation** — if `pi` is missing, stop and report the install command.
+3. **Read credentials/endpoint from config** — resolve `API_KEY`/`BASE_URL` from the same settings chain the skills use (project `.claude/pi.local.json` > `.claude/pi.json` > `~/.claude/pi.local.json`), resolving `$VAR`/`${VAR}` references to environment variables. This keeps the actual key/URL out of the calling model's context — the caller only passes provider/model/endpoint keys, never the secret itself. Use a helper that reads `apiKey`/`baseUrl` from the merged config and resolves env references:
+   ```bash
+   resolve_env() {
+     local val="$1"
+     while [[ "$val" =~ \$\{?([a-zA-Z_][a-zA-Z0-9_]*)\}? ]]; do
+       local var_name="${BASH_REMATCH[1]}"
+       local var_value="${!var_name:-}"
+       val="${val//${BASH_REMATCH[0]}/$var_value}"
+     done
+     echo "$val"
+   }
+   CONFIG='{}'
+   for f in "$HOME/.claude/pi.local.json" ".claude/pi.json" ".claude/pi.local.json"; do
+     [ -f "$f" ] && CONFIG=$(jq -s '.[0] * .[1]' /dev/stdin "$f" 2>/dev/null <<<"$CONFIG" || echo "$CONFIG")
+   done
+   # Endpoint-first with flat fallback (matches the skills).
+   EP="${ENDPOINT:-$(echo "$CONFIG" | jq -r '.defaultEndpoint // ""')}"
+   API_KEY=$(resolve_env "$(echo "$CONFIG" | jq -r --arg e "$EP" 'if $e != "" then .endpoints[$e].apiKey // "" else (.apiKey // "") end')")
+   BASE_URL=$(resolve_env "$(echo "$CONFIG" | jq -r --arg e "$EP" 'if $e != "" then .endpoints[$e].baseUrl // "" else (.baseUrl // "") end')")
+   ```
+   If `API_KEY` is empty after resolution, fall back to the caller-provided `PROVIDER`-specific env var (e.g. `OPENAI_API_KEY`) which pi reads itself.
 3. **Resolve the agent directory** — pi reads endpoints/credentials/sessions from an "agent dir" (default `~/.pi/agent`). It is overridable via the `PI_CODING_AGENT_DIR` env var, which `getAgentDir()` honors. Use `AGENT_DIR` from the caller, else `$PI_CODING_AGENT_DIR`, else `~/.pi/agent`:
    ```bash
    AGENT_DIR="${AGENT_DIR:-${PI_CODING_AGENT_DIR:-$HOME/.pi/agent}}"
    ```
    Running pi with a custom `AGENT_DIR` keeps all pi state inside the current project — required in git-worktree/sandboxed sessions where writing `$HOME/.pi` would be rejected as out-of-worktree. When set, export it to pi (`PI_CODING_AGENT_DIR="$AGENT_DIR"`).
-4. **Ensure the endpoint is in models.json (idempotent merge)** — pi has no `--base-url` flag; it reads custom endpoints from `$AGENT_DIR/models.json`. When `BASE_URL` is non-empty, merge `baseUrl` and register the current `MODEL` (so pi stops warning "Model not found" and the model shows in `--list-models`). Compare the **compact** result against the existing content and write only when it differs — a matching value skips the write, avoiding an out-of-worktree write on every run once configured. **Use a separate `PROVIDER_KEY` for the models.json write so the caller's `PROVIDER` (possibly empty, meaning "let pi choose its default") is never mutated or leaked into the pi command.** `openai` is only a fallback for the models.json key, since custom endpoints are OpenAI-compatible:
+5. **Ensure the endpoint is in models.json (idempotent merge)** — pi has no `--base-url` flag; it reads custom endpoints from `$AGENT_DIR/models.json`. When `BASE_URL` is non-empty, merge `baseUrl` and register the current `MODEL` (so pi stops warning "Model not found" and the model shows in `--list-models`). Compare the **compact** result against the existing content and write only when it differs — a matching value skips the write, avoiding an out-of-worktree write on every run once configured. **Use a separate `PROVIDER_KEY` for the models.json write so the caller's `PROVIDER` (possibly empty, meaning "let pi choose its default") is never mutated or leaked into the pi command.** `openai` is only a fallback for the models.json key, since custom endpoints are OpenAI-compatible:
    ```bash
    if [ -n "$BASE_URL" ]; then
      PROVIDER_KEY="${PROVIDER:-openai}"
@@ -61,7 +82,7 @@ You are the execution layer for the pi plugin. You run the `pi` CLI (`@earendil-
      fi
    fi
    ```
-5. **Collect git + CLAUDE.md context (delegate only)** — review already sends these via `APPEND_PATHS` (CLAUDE.md, GIT_FILE, DIFF_FILE), so gate this collection on `MODE=delegate` to avoid duplicate `--append-system-prompt` entries. For delegate, ensure `APPEND_PATHS` carries the user and project CLAUDE.md files (the caller omits them), then capture `git status --short`, `git diff --stat`, `git log --oneline -10`, and the current branch into a temp file. Record the git file as `GIT_FILE` and add it to `APPEND_PATHS` (plus `CLEANUP_FILES` so it is removed when pi exits). This gives pi the same situational awareness the caller has:
+6. **Collect git + CLAUDE.md context (delegate only)** — review already sends these via `APPEND_PATHS` (CLAUDE.md, GIT_FILE, DIFF_FILE), so gate this collection on `MODE=delegate` to avoid duplicate `--append-system-prompt` entries. For delegate, ensure `APPEND_PATHS` carries the user and project CLAUDE.md files (the caller omits them), then capture `git status --short`, `git diff --stat`, `git log --oneline -10`, and the current branch into a temp file. Record the git file as `GIT_FILE` and add it to `APPEND_PATHS` (plus `CLEANUP_FILES` so it is removed when pi exits). This gives pi the same situational awareness the caller has:
    ```bash
    if [ "$MODE" = "delegate" ]; then
      # Delegate: caller omits APPEND_PATHS — add CLAUDE.md here
@@ -76,15 +97,15 @@ You are the execution layer for the pi plugin. You run the `pi` CLI (`@earendil-
      fi
    fi
    ```
-6. **Doctor mode** (`MODE=doctor`) — run the configuration check from the delegate skill's `references/doctor.md`: check `pi` is installed (`pi --version`), list config files, print the effective resolved settings, and run a connectivity probe (`pi -p --provider ... "Reply with exactly: OK"`). This is the only mode where the agent directly invokes `pi` for a non-task purpose. Report the doctor output (installation, config presence, resolved settings, connectivity result) per the Output Format below, with the doctor's structured findings in the report body.
-7. **Build the append context as `--append-system-prompt` pairs** — the caller passes `APPEND_PATHS` (CLAUDE.md files, and for review the git-context and diff files; for delegate these are collected in step 5). Convert each to its own `--append-system-prompt <path>` pair, collected in an array. **Do NOT accumulate into a space-joined string and expand unquoted** — under zsh that expansion is a single argument, so pi receives the literal string `--append-system-prompt /path/CLAUDE.md` as one token and appends it as text instead of reading the file:
+7. **Doctor mode** (`MODE=doctor`) — run the configuration check from the delegate skill's `references/doctor.md`: check `pi` is installed (`pi --version`), list config files, print the effective resolved settings, and run a connectivity probe (`pi -p --provider ... "Reply with exactly: OK"`). This is the only mode where the agent directly invokes `pi` for a non-task purpose. Report the doctor output (installation, config presence, resolved settings, connectivity result) per the Output Format below, with the doctor's structured findings in the report body.
+8. **Build the append context as `--append-system-prompt` pairs** — the caller passes `APPEND_PATHS` (CLAUDE.md files, and for review the git-context and diff files; for delegate these are collected in step 5). Convert each to its own `--append-system-prompt <path>` pair, collected in an array. **Do NOT accumulate into a space-joined string and expand unquoted** — under zsh that expansion is a single argument, so pi receives the literal string `--append-system-prompt /path/CLAUDE.md` as one token and appends it as text instead of reading the file:
    ```bash
    APPENDS=()
    for p in "${APPEND_PATHS[@]}"; do
      [ -n "$p" ] && APPENDS+=(--append-system-prompt "$p")
    done
    ```
-8. **Assemble the command in an array**, then run it. Arrays keep every flag a distinct argument regardless of shell (zsh does not word-split unquoted variables):
+9. **Assemble the command in an array**, then run it. Arrays keep every flag a distinct argument regardless of shell (zsh does not word-split unquoted variables):
    ```bash
    CMD=(pi -p)
    # Provider: use the caller's resolved PROVIDER; else if a custom BASE_URL is set,
@@ -106,13 +127,13 @@ You are the execution layer for the pi plugin. You run the `pi` CLI (`@earendil-
    CMD+=("${FILE_REFS[@]}")   # review-only: @file references as separate args
    CMD+=("$TASK")
    ```
-9. **Run in the background** via Bash with `run_in_background` — `PI_CODING_AGENT_DIR="$AGENT_DIR" "${CMD[@]}"`. Do NOT add a shell `timeout` — pi tasks run to completion. Do NOT use Monitor — pi is a single-shot command, not an event stream.
-10. **Wait for completion**, then verify:
+10. **Run in the background** via Bash with `run_in_background` — `PI_CODING_AGENT_DIR="$AGENT_DIR" "${CMD[@]}" </dev/null`. **CRITICAL: always redirect stdin from `/dev/null`** — `pi -p` (print mode) mis-detects a terminal/pipe stdin as interactive and waits for input, hanging indefinitely. With `</dev/null` pi runs non-interactively to completion. Do NOT add a shell `timeout` — pi tasks run to completion. Do NOT use Monitor — pi is a single-shot command, not an event stream.
+11. **Wait for completion**, then verify:
    - `delegate`: run `git diff --stat` and enumerate modified files — this is pi's real output, which is file edits, not stdout.
    - `review`: read the background task output — stdout IS the review text.
-   - `doctor`: the connectivity probe output IS the result (see step 6).
-11. **Clean up temp files** — remove any `CLEANUP_FILES` the caller listed (including the git-context temp file this agent created for delegate mode).
-12. **Report** per the Output Format below.
+   - `doctor`: the connectivity probe output IS the result (see step 7).
+12. **Clean up temp files** — remove any `CLEANUP_FILES` the caller listed (including the git-context temp file this agent created for delegate mode).
+13. **Report** per the Output Format below.
 
 ## Standards
 

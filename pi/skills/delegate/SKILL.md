@@ -283,8 +283,6 @@ MODE: delegate
 TASK: <task description>
 PROVIDER: <resolved or empty — leave pi's default>
 MODEL: <resolved or empty — leave pi's default>
-API_KEY: <resolved or empty>
-BASE_URL: <resolved or empty — pi-agent writes it to the agent-dir models.json>
 AGENT_DIR: <optional — pi agent dir; default ~/.pi/agent. Set to a worktree-local path (e.g. .pi-agent) in sandboxed/git-worktree sessions so pi state stays inside the project>
 THINKING: <resolved, default max>
 TOOLS: <resolved, default read,bash,write,edit,grep,find,ls>
@@ -292,6 +290,8 @@ EXCLUDE_TOOLS: <resolved from --exclude-tools or empty>
 NO_GIT: <true if --no-git>
 APPEND_PATHS: <(omit — the pi-agent adds CLAUDE.md itself, and collects git context per NO_GIT)>
 ```
+
+**Do NOT pass `API_KEY` or `BASE_URL`** — the pi-agent reads them from the settings files itself (so the actual key/URL never enters the model's context). Only pass non-sensitive config (provider/model/thinking/tools/endpoint keys).
 
 The pi-agent handles: agent-dir resolution, CLAUDE.md context, git context (unless `--no-git`), command construction, background execution (no timeout), and verification via `git diff --stat`.
 

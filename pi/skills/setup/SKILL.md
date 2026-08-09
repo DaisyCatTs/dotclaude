@@ -104,7 +104,8 @@ elif [ -n "$BASE_URL" ]; then
   CMD+=(--provider "${PROVIDER_KEY:-openai}")
 fi
 CMD+=(--model "$MODEL" --thinking low --no-session --no-context-files --approve "Reply with exactly: OK. Model: <model-name>")
-"${CMD[@]}"
+# </dev/null: pi -p hangs on a terminal/pipe stdin (mis-detects interactive) — force non-interactive.
+"${CMD[@]}" </dev/null
 ```
 
 Report the result: "pi responded successfully with model <name>" on exit 0, or the error on failure.
@@ -224,7 +225,8 @@ elif [ -n "$BASE_URL" ]; then
 fi
 CMD+=(--model "$MODEL" --thinking low --no-session --no-context-files --approve "Reply with exactly: OK. Model: <model-name>")
 # Pin the probe to the agent dir we just wrote (matches pi-agent's run pattern).
-PI_CODING_AGENT_DIR="$AGENT_DIR" "${CMD[@]}"
+# </dev/null: pi -p hangs on a terminal/pipe stdin (mis-detects interactive).
+PI_CODING_AGENT_DIR="$AGENT_DIR" "${CMD[@]}" </dev/null
 ```
 
 Report success or failure to the user.
