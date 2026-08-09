@@ -129,15 +129,13 @@ fi
 # Model ownership check (AFTER re-resolve, on the final endpoint/model): if the model is
 # not in the active endpoint's list (a stale defaultModel from a previous --endpoint switch,
 # or a CLI --endpoint whose models don't contain the resolved model), fall back to the
-# endpoint's first model so provider and model stay consistent.
-if [ -n "$ENDPOINT" ] && [ -n "$MODEL" ] && [ "$MODEL" != "null" ]; then
+# endpoint's first model so provider and model stay consistent. Skip when a CLI --model
+# was given — the user explicitly chose that model (CLI > settings), so do not override it.
+if [ -z "$CLI_MODEL" ] && [ -n "$ENDPOINT" ] && [ -n "$MODEL" ] && [ "$MODEL" != "null" ]; then
   IN_ENDPOINT=$(echo "$CONFIG" | jq -r --arg e "$ENDPOINT" --arg m "$MODEL" '(.endpoints[$e].models // []) | index($m) // -1')
   if [ "$IN_ENDPOINT" = "-1" ]; then
     MODEL=$(resolve_env "$(echo "$CONFIG" | jq -r --arg e "$ENDPOINT" '.endpoints[$e].models[0] // ""')")
   fi
-fi
-  BASE_URL=$(resolve_env "$(echo "$CONFIG" | jq -r --arg e "$ENDPOINT" '.endpoints[$e].baseUrl // ""')")
-  API_KEY=$(resolve_env "$(echo "$CONFIG" | jq -r --arg e "$ENDPOINT" '.endpoints[$e].apiKey // ""')")
 fi
 ```
 

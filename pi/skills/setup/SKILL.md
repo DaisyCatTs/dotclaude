@@ -174,8 +174,8 @@ echo "$EXISTING" | jq \
   --arg model "${MODEL:-}" \
   --arg baseUrl "${BASE_URL:-}" \
   --arg apiKey "${API_KEY:-}" \
-  '.endpoints[$e] = (.endpoints[$e] // {provider: (if $provider != "" then $provider else "openai" end)}) |
-   .endpoints[$e].provider = (if $provider != "" then $provider else (.endpoints[$e].provider // "openai") end) |
+  '.endpoints[$e] = (.endpoints[$e] // {provider: $provider}) |
+   .endpoints[$e].provider = (if $provider != "" then $provider else .endpoints[$e].provider end) |
    .endpoints[$e].baseUrl = (if $baseUrl != "" then $baseUrl else .endpoints[$e].baseUrl // "" end) |
    .endpoints[$e].apiKey = (if $apiKey != "" then $apiKey else .endpoints[$e].apiKey // "" end) |
    .endpoints[$e].models = ((.endpoints[$e].models // []) + [($model | select(. != ""))] | unique) |
