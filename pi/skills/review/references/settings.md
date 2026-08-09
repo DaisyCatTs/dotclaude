@@ -34,7 +34,8 @@ All fields are optional. The example below shows the format — fill in your own
 
 Each endpoint entry has:
 - `provider` (required) — pi's known provider name (`openai`, `anthropic`, `google`, etc.). This is what pi's `--provider` flag receives.
-- `baseUrl` (optional) — custom API endpoint. When present, the skill writes it to `~/.pi/agent/models.json` for the specified `provider` before running.
+- `baseUrl` (optional) — custom API endpoint. When present, the pi-agent writes it to the agent-dir `models.json` (default `~/.pi/agent/models.json`, redirectable via `PI_CODING_AGENT_DIR`/`AGENT_DIR`) for the specified `provider` before running.
+- `apiKey` (optional) — API key or `$ENV_VAR` reference, passed to pi via `--api-key`.
 - `models` — array of model IDs available via this endpoint.
 
 Only include fields the user wants to override. Partial files are fine — the chain merges per-field.
@@ -78,14 +79,17 @@ resolve_env() {
 }
 
 ENDPOINT=$(resolve_env "$(echo "$CONFIG" | jq -r '.defaultEndpoint // ""')")
-MODEL=$(resolve_env "$(echo "$CONFIG" | jq -r '.defaultModel // ""')")
-THINKING=$(resolve_env "$(echo "$CONFIG" | jq -r '.thinking // "low"')")
-PROVIDER=$(resolve_env "$(echo "$CONFIG" | jq -r --arg e "$ENDPOINT" '.endpoints[$e].provider // "openai"')")
-BASE_URL=$(resolve_env "$(echo "$CONFIG" | jq -r --arg e "$ENDPOINT" '.endpoints[$e].baseUrl // ""')")
-API_KEY=$(resolve_env "$(echo "$CONFIG" | jq -r --arg e "$ENDPOINT" '.endpoints[$e].apiKey // ""')")
-# If model not set, use first model from the endpoint
+# Endpoint-first with legacy flat-field fallback (matches /pi:delegate). When
+# defaultEndpoint is empty, fall back to the flat .provider/.model/.baseUrl/.apiKey.
+# Provider stays empty when unset — pi-agent lets pi's own default apply.
+PROVIDER=$(resolve_env "$(echo "$CONFIG" | jq -r --arg e "$ENDPOINT" 'if $e != "" then (.endpoints[$e].provider // "") else (.provider // "") end')")
+MODEL=$(resolve_env "$(echo "$CONFIG" | jq -r --arg e "$ENDPOINT" 'if $e != "" then (.defaultModel // "") else (.model // "") end')")
+BASE_URL=$(resolve_env "$(echo "$CONFIG" | jq -r --arg e "$ENDPOINT" 'if $e != "" then (.endpoints[$e].baseUrl // "") else (.baseUrl // "") end')")
+API_KEY=$(resolve_env "$(echo "$CONFIG" | jq -r --arg e "$ENDPOINT" 'if $e != "" then (.endpoints[$e].apiKey // "") else (.apiKey // "") end')")
+THINKING=$(resolve_env "$(echo "$CONFIG" | jq -r '.thinking // "max"')")
+# If model still empty, use the first model from the endpoint (handles defaultModel: "")
 if [ -z "$MODEL" ] || [ "$MODEL" = "null" ]; then
-  MODEL=$(echo "$CONFIG" | jq -r --arg e "$ENDPOINT" '.endpoints[$e].models[0] // ""')
+  MODEL=$(resolve_env "$(echo "$CONFIG" | jq -r --arg e "$ENDPOINT" '.endpoints[$e].models[0] // ""')")
 fi
 ```
 
@@ -99,6 +103,8 @@ When `$ARGUMENTS` is exactly `--edit-config` (with optional scope flag), open th
 | Project shared | `--edit-config --shared` | `.claude/pi.json` | Team defaults, committed | tracked |
 | Global personal | `--edit-config --global` or `--edit-config -g` | `~/.claude/pi.local.json` | User-wide across all projects | user home |
 
+**Shared scope (`--shared`) is committed to git** — never put a literal `apiKey` in it. The `apiKey` field there must be a `$ENV_VAR` reference (e.g. `"$MY_API_KEY"`) so no secret is committed. Literal keys belong in the personal scopes (`.claude/pi.local.json`, `~/.claude/pi.local.json`).
+
 ```bash
 # Detect scope
 if [[ "$ARGUMENTS" == *"--global"* || "$ARGUMENTS" == *"-g"* ]]; then
@@ -110,7 +116,7 @@ else
 fi
 
 # Create if not exists
-mkdir -p "$(dirname "$CONFIG_PATH")"
+mkdir -p "${CONFIG_PATH%/*}"
 if [ ! -f "$CONFIG_PATH" ]; then
   cat > "$CONFIG_PATH" << 'EOF'
 {
@@ -133,17 +139,22 @@ Report: "Settings file created/opened at `<path>`. Changes take effect on the ne
 When `$ARGUMENTS` is exactly `--list-models`, read the merged config and display all configured endpoints and their models:
 
 ```bash
-echo "$CONFIG" | jq -r '
-  .defaultEndpoint as $def |
-  .defaultModel as $defm |
-  (.endpoints | to_entries[] |
-    "\(.key)" + if .key == $def then " (default)" else "" end +
-    " → " + .value.provider +
-    ":" +
-    (.value.models | join(", ")) +
-    if .key == $def and $defm != "" then "  ← active: " + $defm else "" end
-  )
-'
+# Endpoints present → list them; otherwise fall back to flat fields
+if echo "$CONFIG" | jq -e '.endpoints | length > 0' >/dev/null 2>&1; then
+  echo "$CONFIG" | jq -r '
+    .defaultEndpoint as $def |
+    .defaultModel as $defm |
+    ((.endpoints // {}) | to_entries[] |
+      "\(.key)" + if .key == $def then " (default)" else "" end +
+      " → " + .value.provider +
+      ":" +
+      ((.value.models // []) | join(", ")) +
+      if .key == $def and $defm != "" then "  ← active: " + $defm else "" end
+    )
+  '
+else
+  echo "$CONFIG" | jq -r '"flat: " + (.provider // "") + " / " + (.model // "") + " @ " + (.baseUrl // "(default)")'
+fi
 ```
 
 Then stop — do not proceed to review.

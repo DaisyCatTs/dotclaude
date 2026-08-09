@@ -1,14 +1,14 @@
 ---
 name: delegate
-description: Delegates a coding task to pi (dev/pi), a minimal terminal coding harness. This skill should be used when the user asks to "use pi", "run pi", "delegate to pi", "let pi handle this", "ask pi to", "have pi do", or invokes /pi:delegate. It bridges the current Claude Code context to pi CLI for execution, passing relevant files, git state, and the task description.
+description: Delegates a coding task to pi (dev/pi), a minimal terminal coding harness. This skill should be used when the user asks to "use pi", "run pi", "delegate to pi", "let pi handle this", "ask pi to", "have pi do", or invokes /pi:delegate. It bridges the current Claude Code context to the pi CLI, passing relevant files, git state, and the task description for execution by the pi-agent.
 user-invocable: true
-argument-hint: "<task description> [--provider PROVIDER] [--model MODEL] [--api-key KEY] [--thinking LEVEL] [--tools TOOL_LIST] [--exclude-tools TOOL_LIST] [--no-files] [--no-git] | --edit-config [--local|--shared|--global] | --doctor"
-allowed-tools: ["Bash(git:*)", "Bash(jq:*)", "Bash(ls:*)", "Bash(find:*)", "Bash(cat:*)", "Bash(mkdir:*)", "Bash(echo:*)", "Bash(command:*)", "Bash(pi:*)", "Read", "Grep", "Glob"]
+argument-hint: "<task description> [--endpoint ENDPOINT] [--provider PROVIDER] [--model MODEL] [--api-key KEY] [--thinking LEVEL] [--tools TOOL_LIST] [--exclude-tools TOOL_LIST] [--no-git] | --edit-config [--local|--shared|--global] | --list-models | --doctor"
+allowed-tools: ["Task", "Bash(git:*)", "Bash(jq:*)", "Bash(ls:*)", "Bash(find:*)", "Bash(cat:*)", "Bash(mkdir:*)", "Bash(mv:*)", "Bash(echo:*)", "Bash(command:*)", "Bash(grep:*)", "Bash(head:*)", "Bash(vi:*)", "Bash(pi:*)", "Read", "Grep", "Glob"]
 ---
 
 # CRITICAL: pi CLI Integration
 
-This skill delegates a task to the `pi` CLI tool (`@earendil-works/pi-coding-agent`). It is the ONLY entry point for the pi plugin.
+This skill delegates a task to the `pi` CLI tool (`@earendil-works/pi-coding-agent`) via the dedicated `pi:pi-agent` execution layer. Config is read endpoint-first (same format as `/pi:review`); legacy flat fields remain as a fallback.
 
 ## Before Execution: Check Installation
 
@@ -35,42 +35,46 @@ Then stop — do not proceed without pi installed.
 User preferences persist across invocations via JSON files. The resolution chain (highest priority first):
 
 1. **CLI flag** (from `$ARGUMENTS`)
-2. **Process env** — `PI_PROVIDER`, `PI_MODEL`, `PI_API_KEY`, `PI_BASE_URL`, `PI_THINKING`, `PI_TOOLS`
-3. **`.claude/pi.local.json`** — project-specific overrides, gitignored
+2. **`.claude/pi.local.json`** — project-specific overrides, gitignored
+3. **`.claude/pi.json`** — project shared defaults, committed
 4. **`~/.claude/pi.local.json`** — global user-wide defaults
 5. **pi's own defaults** (pi decides its own default provider and model)
 
+Provider/model/baseUrl/apiKey come from these files (or CLI flags). API keys reach pi via `--api-key` — nothing is written to `models.json` except `baseUrl`. pi itself reads the usual provider env vars (`OPENAI_API_KEY`, etc.) as its own last-resort defaults.
+
 ### Settings file format
 
-Settings files only override what the user wants to change. All fields are optional — omit any field to let pi's own default apply.
+The settings file uses the **same named-endpoint format as `/pi:review`** — endpoint-first. Legacy flat fields (`provider`, `model`, `baseUrl`, `apiKey`) are still honored as a fallback when no `defaultEndpoint` is set, so existing configs keep working.
 
 Values can reference environment variables using `$VAR` or `${VAR}` syntax — they are resolved at read time.
 
 ```json
 {
-  "provider": "",
-  "model": "",
-  "baseUrl": "",
-  "apiKey": "",
-  "thinking": "",
-  "tools": "",
-  "excludeTools": "",
-  "noFiles": false,
-  "noGit": false
+  "endpoints": {
+    "local-proxy": {
+      "provider": "openai",
+      "baseUrl": "http://10.10.0.195:8317/v1",
+      "models": ["gemini-3.6-flash-high", "gemini-3.6-pro"]
+    }
+  },
+  "defaultEndpoint": "local-proxy",
+  "defaultModel": "gemini-3.6-flash-high"
 }
 ```
 
-Only include fields the user wants to override. Partial files are fine — the chain merges per-field.
+Each endpoint key has `provider` (required), optional `baseUrl`, optional `apiKey`, and `models` (array). Only include fields you want to override — partial files merge per-field across the chain.
+
+**Note on precedence:** endpoint-first resolution means that once a `defaultEndpoint` exists anywhere in the merged chain, the active endpoint wins and a project's legacy flat fields (`provider`/`model`/`baseUrl`) are ignored for that key. If you need a project to override the global endpoint, set that project's `.claude/pi.local.json` `defaultEndpoint` to its own endpoint — the flat fields are only consulted when no `defaultEndpoint` is set at all.
 
 ### Reading settings
 
-Before parsing `$ARGUMENTS`, read the settings files in priority order (lowest first, so each overrides the previous):
+Read the settings files in priority order (lowest first, so each overrides the previous):
 
 ```bash
 # Start with empty config
 CONFIG='{}'
 
-# 1. Global personal (lowest priority)
+# 1. Global personal (lowest file priority)
 if [ -f "$HOME/.claude/pi.local.json" ]; then
   CONFIG=$(jq -s '.[0] * .[1]' /dev/stdin "$HOME/.claude/pi.local.json" 2>/dev/null <<<"$CONFIG" || echo "$CONFIG")
 fi
@@ -86,7 +90,7 @@ if [ -f ".claude/pi.local.json" ]; then
 fi
 ```
 
-Then extract values, resolving environment variable references. After file-based config, process env vars (`PI_*`) override any JSON value:
+Then extract values, resolving environment variable references. Endpoint-first with flat-field fallback:
 
 ```bash
 # Resolve env vars in a JSON value: "$VAR" or "${VAR}" → actual value
@@ -100,15 +104,23 @@ resolve_env() {
   echo "$val"
 }
 
-# Read from merged config (files), then let process env override
-PROVIDER=$(resolve_env "${PI_PROVIDER:-$(echo "$CONFIG" | jq -r '.provider // ""')}")
-MODEL=$(resolve_env "${PI_MODEL:-$(echo "$CONFIG" | jq -r '.model // ""')}")
-BASE_URL=$(resolve_env "${PI_BASE_URL:-$(echo "$CONFIG" | jq -r '.baseUrl // ""')}")
-API_KEY=$(resolve_env "${PI_API_KEY:-$(echo "$CONFIG" | jq -r '.apiKey // ""')}")
-THINKING=$(resolve_env "${PI_THINKING:-$(echo "$CONFIG" | jq -r '.thinking // "low"')}")
-TOOLS=$(resolve_env "${PI_TOOLS:-$(echo "$CONFIG" | jq -r '.tools // ""')}")
-EXCLUDE_TOOLS=$(resolve_env "${PI_EXCLUDE_TOOLS:-$(echo "$CONFIG" | jq -r '.excludeTools // ""')}")
+# Endpoint-first; legacy flat fields fill in when no defaultEndpoint is set
+ENDPOINT=$(resolve_env "$(echo "$CONFIG" | jq -r '.defaultEndpoint // ""')")
+# Provider stays empty when unset — pi-agent lets pi's own default apply.
+PROVIDER=$(resolve_env "$(echo "$CONFIG" | jq -r --arg e "$ENDPOINT" 'if $e != "" then (.endpoints[$e].provider // "") else (.provider // "") end')")
+MODEL=$(resolve_env "$(echo "$CONFIG" | jq -r --arg e "$ENDPOINT" 'if $e != "" then (.defaultModel // "") else (.model // "") end')")
+BASE_URL=$(resolve_env "$(echo "$CONFIG" | jq -r --arg e "$ENDPOINT" 'if $e != "" then (.endpoints[$e].baseUrl // "") else (.baseUrl // "") end')")
+API_KEY=$(resolve_env "$(echo "$CONFIG" | jq -r --arg e "$ENDPOINT" 'if $e != "" then (.endpoints[$e].apiKey // "") else (.apiKey // "") end')")
+THINKING=$(resolve_env "$(echo "$CONFIG" | jq -r '.thinking // "max"')")
+TOOLS=$(resolve_env "$(echo "$CONFIG" | jq -r '.tools // ""')")
+EXCLUDE_TOOLS=$(resolve_env "$(echo "$CONFIG" | jq -r '.excludeTools // ""')")
+# If model still empty, use the first model from the endpoint (handles defaultModel: "")
+if [ -z "$MODEL" ] || [ "$MODEL" = "null" ]; then
+  MODEL=$(resolve_env "$(echo "$CONFIG" | jq -r --arg e "$ENDPOINT" '.endpoints[$e].models[0] // ""')")
+fi
 ```
+
+The `$VAR` references inside JSON values are resolved at read time by `resolve_env`. (pi reads its own provider env vars — `OPENAI_API_KEY`, etc. — as its last-resort default, so you do not need to set them when a config file or flag provides the key.)
 
 ### `--edit-config` flag
 
@@ -119,6 +131,8 @@ When `$ARGUMENTS` is exactly `--edit-config` (with optional scope flag), open th
 | Project personal | `--edit-config` (default) or `--edit-config --local` | `.claude/pi.local.json` | Per-project overrides | gitignored |
 | Project shared | `--edit-config --shared` | `.claude/pi.json` | Team defaults, committed | tracked |
 | Global personal | `--edit-config --global` or `--edit-config -g` | `~/.claude/pi.local.json` | User-wide across all projects | user home |
+
+**Shared scope (`--shared`) is committed to git** — never put a literal `apiKey` in it. The `apiKey` field there must be a `$ENV_VAR` reference (e.g. `"$MY_API_KEY"`) so no secret is committed. Literal keys belong in the personal scopes (`.claude/pi.local.json`, `~/.claude/pi.local.json`).
 
 ```bash
 # Detect scope
@@ -131,20 +145,15 @@ else
   CONFIG_PATH=".claude/pi.local.json"
 fi
 
-# Create if not exists
-mkdir -p "$(dirname "$CONFIG_PATH")"
+# Create if not exists (seed matches the review skill's template)
+mkdir -p "${CONFIG_PATH%/*}"
 if [ ! -f "$CONFIG_PATH" ]; then
   cat > "$CONFIG_PATH" << 'EOF'
 {
-  "provider": "",
-  "model": "",
-  "baseUrl": "",
-  "apiKey": "",
-  "thinking": "",
-  "tools": "",
-  "excludeTools": "",
-  "noFiles": false,
-  "noGit": false
+  "endpoints": {},
+  "defaultEndpoint": "",
+  "defaultModel": "",
+  "thinking": ""
 }
 EOF
 fi
@@ -155,9 +164,34 @@ ${EDITOR:-vi} "$CONFIG_PATH"
 
 Report: "Settings file created/opened at `<path>`. Changes take effect on the next `/pi:delegate` invocation."
 
+### `--list-models` flag
+
+When `$ARGUMENTS` is exactly `--list-models`, read the merged config and display all configured endpoints and their models:
+
+```bash
+# Endpoints present → list them; otherwise fall back to flat fields
+if echo "$CONFIG" | jq -e '.endpoints | length > 0' >/dev/null 2>&1; then
+  echo "$CONFIG" | jq -r '
+    .defaultEndpoint as $def |
+    .defaultModel as $defm |
+    ((.endpoints // {}) | to_entries[] |
+      "\(.key)" + if .key == $def then " (default)" else "" end +
+      " → " + .value.provider +
+      ":" +
+      ((.value.models // []) | join(", ")) +
+      if .key == $def and $defm != "" then "  ← active: " + $defm else "" end
+    )
+  '
+else
+  echo "$CONFIG" | jq -r '"flat: " + (.provider // "") + " / " + (.model // "") + " @ " + (.baseUrl // "(default)")'
+fi
+```
+
+Then stop — do not proceed to delegate.
+
 ### `--doctor` flag
 
-When `$ARGUMENTS` is exactly `--doctor`, run a comprehensive configuration check. See `references/doctor.md` for the script.
+When `$ARGUMENTS` is exactly `--doctor`, run a comprehensive configuration check. First run the "Reading settings" snippet above so `$PROVIDER`/`$MODEL`/`$BASE_URL`/`$API_KEY` are populated — the doctor script prints them, and running it before reading settings would wrongly report "pi default"/"not set". Then run the script in `references/doctor.md`.
 
 ## Argument Parsing
 
@@ -165,13 +199,13 @@ Parse `$ARGUMENTS` to extract the task description and optional flags. The task 
 
 | Flag | Description | Source Priority |
 |------|-------------|-----------------|
-| `--provider` | LLM provider (anthropic, openai, google, etc.) | CLI > settings > pi's default |
-| `--model` | Model pattern or ID (e.g. `claude-sonnet-4-20250514`, `openai/gpt-4o`) | CLI > settings > pi's default |
+| `--endpoint` | Endpoint key name (must match a key in settings `endpoints`) | CLI > settings > `defaultEndpoint` |
+| `--provider` | LLM provider (anthropic, openai, google, etc.) | CLI > settings > endpoint/provider > pi's default |
+| `--model` | Model pattern or ID (e.g. `claude-sonnet-4-20250514`, `openai/gpt-4o`) | CLI > settings > endpoint models > pi's default |
 | `--api-key` | API key for the provider | CLI > settings > env var or config file |
-| `--thinking` | Thinking level (off/minimal/low/medium/high/xhigh/max) | CLI > settings > `low` |
+| `--thinking` | Thinking level (off/minimal/low/medium/high/xhigh/max) | CLI > settings > `max` |
 | `--tools` | Comma-separated allowed tools list | CLI > settings > `read,bash,write,edit,grep,find,ls` |
 | `--exclude-tools` | Comma-separated blocked tools list | CLI > settings > (none) |
-| `--no-files` | Skip collecting file context | CLI > settings > `false` |
 | `--no-git` | Skip collecting git context | CLI > settings > `false` |
 
 ### Resolution order per flag
@@ -180,162 +214,48 @@ For each flag, resolve the value by checking CLI flag first, then settings file,
 
 1. Parse `$ARGUMENTS` for that flag. If present, use it.
 2. Otherwise, read from `$CONFIG` (the merged settings). If non-null/non-empty, use it.
-3. Otherwise, use pi's built-in default (see below).
+3. Otherwise, use pi's built-in default.
 
-### Defaults behavior
+### Endpoint resolution
 
-- **provider**: No default — let pi's own default decide. The settings chain (CLI > config file > pi's internal default) resolves the value.
-- **model**: No default — let pi's own default decide. Only pass `--model` if the user explicitly specified it or the settings file has a value.
-- **thinking**: Default to `low` to keep responses fast and cheap.
-- **tools**: Default to full toolset `read,bash,write,edit,grep,find,ls`.
-- **base-url**: When resolved, write to `~/.pi/agent/models.json` for the provider (defaults to `openai`). The user can override the provider explicitly via CLI flag.
+1. If `--endpoint` is specified, use it as the key into `endpoints` config.
+2. If `--model` is specified without `--endpoint`, scan all endpoints for a model matching the ID — use the first match's endpoint.
+3. Otherwise, use `defaultEndpoint` from settings.
+4. Resolve the pi provider from the endpoint's `provider` field; the model from `defaultModel` then the endpoint's first `models` entry.
+5. If no endpoint is configured, fall back to legacy flat fields (`provider`/`model`/`baseUrl`).
 
-## Context Collection Strategy
+## Delegating to pi-agent
 
-Collect context from the current working directory before calling pi. The goal is to give pi the same situational awareness that Claude Code has.
+Do NOT run `pi` directly. After parsing arguments and resolving settings, launch the dedicated `pi:pi-agent` execution layer with the Task tool. It builds the command, runs pi in the background, and verifies the outcome.
 
-### 1. Pass CLAUDE.md as System Prompt Context
-
-**pi has `read`, `grep`, `find`, and `ls` tools** — it can explore the codebase on its own. Do not pass `@.` file references (pi errors on directory paths). Just pass the task description and let pi use its tools to read what it needs.
-
-However, **always pass the CLAUDE.md files** as system prompt context so pi understands the project and user conventions. `--append-system-prompt` accepts file paths directly — pi reads them automatically.
-
-```bash
-# Build CLAUDE.md context — pass file paths, pi reads them
-CLAUDE_CONTEXT=""
-if [ -f "$HOME/.claude/CLAUDE.md" ]; then
-  CLAUDE_CONTEXT="$CLAUDE_CONTEXT --append-system-prompt $HOME/.claude/CLAUDE.md"
-fi
-if [ -f "CLAUDE.md" ]; then
-  CLAUDE_CONTEXT="$CLAUDE_CONTEXT --append-system-prompt CLAUDE.md"
-fi
-```
-
-### 2. Collect Git Context (unless `--no-git`)
-
-```bash
-git status --short
-git diff --stat
-git log --oneline -10
-```
-
-These go into `--append-system-prompt` as structured context.
-
-### 3. Collect Directory Structure
-
-```bash
-ls -la
-```
-
-Or for deeper context:
-```bash
-find . -maxdepth 2 -type f 2>/dev/null | head -50
-```
-
-## Executing pi
-
-### Command Construction
-
-Build the pi command with these components in order:
-
-1. **Base**: `pi -p` (print mode, non-interactive)
-2. **Provider/Model flags** (use resolved values from settings chain, only pass if non-default):
-   - `--provider <value>` (from settings or pi's default)
-   - `--model <value>` (only if specified in settings or CLI)
-   - `--api-key <value>` (only if resolved from settings or CLI flag)
-   - `--thinking low` (default, only pass if needed)
-3. **Custom base URL**: If `baseUrl` is resolved from settings or CLI flag, write it to `~/.pi/agent/models.json` for the provider before calling pi (see Base URL section below). Never pass `--base-url` to pi — pi does not support it as a CLI flag.
-4. **Tool restrictions** (only if user specified):
-   - `--tools <value>` (only if user wants to restrict)
-   - `--exclude-tools <value>` (only if user specified)
-5. **Session control**: `--no-session --no-context-files --approve`
-6. **CLAUDE.md context**: `$CLAUDE_CONTEXT` (built above — passes `~/.claude/CLAUDE.md` and `./CLAUDE.md` as `--append-system-prompt` file paths, pi reads them automatically)
-7. **Appended context**: `--append-system-prompt "context block"` (for git status, directory listing, etc.)
-8. **Task description**: The quoted task description as the final argument
-
-### Default provider note
-
-Do not hardcode a provider. Resolve from the settings chain (CLI flag > config file > pi's built-in default). pi's own default is `google` (Gemini). If the user has set `"provider": "google"` in `~/.claude/pi.local.json`, that takes effect without needing CLI flags.
-
-### Pattern for appended context
-
-First build the CLAUDE.md context, then format the git/project context as a single block:
-
-```bash
-# Build CLAUDE.md context — pass file paths, pi reads them
-CLAUDE_CONTEXT=""
-if [ -f "$HOME/.claude/CLAUDE.md" ]; then
-  CLAUDE_CONTEXT="$CLAUDE_CONTEXT --append-system-prompt $HOME/.claude/CLAUDE.md"
-fi
-if [ -f "CLAUDE.md" ]; then
-  CLAUDE_CONTEXT="$CLAUDE_CONTEXT --append-system-prompt CLAUDE.md"
-fi
-```
-
-Then format the git context:
+**Pass these fields in the agent prompt:**
 
 ```
---append-system-prompt "Project context at $(pwd):
-Working directory: $(basename $(pwd))
-Git status:
-$(git status --short 2>/dev/null || echo '(not a git repo)')
-
-Recent commits:
-$(git log --oneline -10 2>/dev/null || echo '')
-
-Current branch: $(git branch --show-current 2>/dev/null || echo '')"
+MODE: delegate
+TASK: <task description>
+PROVIDER: <resolved or empty — leave pi's default>
+MODEL: <resolved or empty — leave pi's default>
+API_KEY: <resolved or empty>
+BASE_URL: <resolved or empty — pi-agent writes it to the agent-dir models.json>
+AGENT_DIR: <optional — pi agent dir; default ~/.pi/agent. Set to a worktree-local path (e.g. .pi-agent) in sandboxed/git-worktree sessions so pi state stays inside the project>
+THINKING: <resolved, default max>
+TOOLS: <resolved, default read,bash,write,edit,grep,find,ls>
+EXCLUDE_TOOLS: <resolved from --exclude-tools or empty>
+NO_GIT: <true if --no-git>
+APPEND_PATHS: <(omit — the pi-agent adds CLAUDE.md itself, and collects git context per NO_GIT)>
 ```
 
-### Execute
+The pi-agent handles: agent-dir resolution, CLAUDE.md context, git context (unless `--no-git`), command construction, background execution (no timeout), and verification via `git diff --stat`.
 
-Always use `Bash` with `run_in_background` — pi -p is a single-shot command, not a continuous stream. Monitor is designed for event streams (like `tail -f`) and will timeout when pi's output is delayed or batched.
+### Worktree / sandboxed sessions
 
-**Do not add a shell `timeout`** — pi tasks can be heavy and may run for a long time. Let pi run to completion naturally.
+In a git-worktree or sandboxed session, `$HOME/.pi` is outside the worktree and writes to it get rejected. Two mitigations, applied by the pi-agent:
+- `AGENT_DIR` — pass a worktree-local directory (e.g. `.pi-agent`); pi keeps all its state there via `PI_CODING_AGENT_DIR`. Best for isolated sessions.
+- Conditional write — once a `BASE_URL` already matches the agent-dir `models.json`, the pi-agent skips the write entirely, so an already-configured endpoint causes no out-of-worktree write.
 
-```bash
-# Build CLAUDE.md context — pass file paths, pi reads them
-CLAUDE_CONTEXT=""
-if [ -f "$HOME/.claude/CLAUDE.md" ]; then
-  CLAUDE_CONTEXT="$CLAUDE_CONTEXT --append-system-prompt $HOME/.claude/CLAUDE.md"
-fi
-if [ -f "CLAUDE.md" ]; then
-  CLAUDE_CONTEXT="$CLAUDE_CONTEXT --append-system-prompt CLAUDE.md"
-fi
+### `--base-url` note
 
-# Build the pi command — no file references, pi uses its tools to explore
-PI_CMD="pi -p --thinking low${API_KEY:+ --api-key $API_KEY} --no-session --no-context-files --approve $CLAUDE_CONTEXT \"task description\""
-
-# Run in background — no timeout, let pi finish naturally
-bash -c "$PI_CMD 2>&1" &
-```
-
-### Important: Pi's Default Provider
-
-Do not hardcode a provider. Resolve from the settings chain (CLI flag > config file > pi's built-in default). pi's own default is `google` (Gemini). If the user has set `"provider": "google"` in `~/.claude/pi.local.json`, that takes effect without needing CLI flags.
-
-### Base URL via models.json
-
-pi does not support `--base-url` CLI flag or `OPENAI_BASE_URL` environment variable. Custom API endpoints are configured through `~/.pi/agent/models.json`. When `baseUrl` is resolved from settings or CLI flag, the skill writes it to pi's models.json before calling pi — then calls pi without `--base-url`.
-
-```bash
-# When base-url is resolved, write/merge into pi's models.json
-if [ -n "$BASE_URL" ]; then
-  PROVIDER="${PROVIDER:-openai}"
-  mkdir -p "$HOME/.pi/agent"
-  EXISTING=$(cat "$HOME/.pi/agent/models.json" 2>/dev/null || echo '{}')
-  # Merge: set baseUrl and apiKey for the provider
-  echo "$EXISTING" | jq --arg provider "$PROVIDER" \
-    --arg baseUrl "$BASE_URL" \
-    --arg apiKey "${API_KEY:-}" \
-    '.providers[$provider] = (.providers[$provider] // {}) | 
-     .providers[$provider].baseUrl = $baseUrl |
-     if $apiKey != "" then .providers[$provider].apiKey = $apiKey else . end' \
-    > "$HOME/.pi/agent/models.json.tmp" && \
-    mv "$HOME/.pi/agent/models.json.tmp" "$HOME/.pi/agent/models.json"
-fi
-```
-
-The `--provider` defaults to `openai` when `--base-url` is used (since custom endpoints are typically OpenAI-compatible). The user can override with `--provider` explicitly.
+pi does not support a `--base-url` CLI flag. Custom endpoints are configured through the agent-dir `models.json`, which the pi-agent writes when `BASE_URL` is non-empty — never pass `--base-url` to pi.
 
 ## Handling Output
 
@@ -352,20 +272,11 @@ The `--provider` defaults to `openai` when `--base-url` is used (since custom en
 
 ### On Success (exit code 0)
 
-**Always check for modified files first** — this is where pi's real output lives:
-
-```bash
-git diff --stat
-```
-
-- If git shows changes, present those changes to the user. Describe what pi modified (additions, deletions, file count).
-- If git shows no changes and exit was 0, the task was understood but resulted in no modifications (read-only analysis, conceptual questions, or the task was already satisfied).
-
-Include pi's stdout in the report if it's non-empty, but the file changes are the primary deliverable.
+The pi-agent reports the changed files. Present those changes to the user and describe what pi modified (additions, deletions, file count). If git shows no changes and exit was 0, the task was understood but resulted in no modifications (read-only analysis, conceptual questions, or the task was already satisfied).
 
 ### On Error (exit code 1+)
 
-Show the error message from stderr. Common error causes:
+Show the error message from the pi-agent's report. Common error causes:
 - pi not configured (no API key)
 - Provider/model not available
 - Task interrupted or killed
@@ -375,97 +286,33 @@ Show the error message from stderr. Common error causes:
 ### Basic task with file context
 User: `/pi:delegate review the TypeScript types in src/`
 
-Claude: Builds CLAUDE.md context, collects git context, then runs:
-```bash
-CLAUDE_CONTEXT=""
-if [ -f "$HOME/.claude/CLAUDE.md" ]; then
-  CLAUDE_CONTEXT="$CLAUDE_CONTEXT --append-system-prompt $HOME/.claude/CLAUDE.md"
-fi
-if [ -f "CLAUDE.md" ]; then
-  CLAUDE_CONTEXT="$CLAUDE_CONTEXT --append-system-prompt CLAUDE.md"
-fi
-
-PI_CMD="pi -p --thinking low --no-session --no-context-files --approve $CLAUDE_CONTEXT \"review the TypeScript types in src/\""
-bash -c "$PI_CMD 2>&1" &
-```
+Claude: Reads settings, resolves the endpoint, then launches `pi:pi-agent` with `MODE: delegate` and the task description. pi-agent builds the pi command, runs it in the background, and reports `git diff --stat`.
 
 ### Specific model
 User: `/pi:delegate refactor this component --model claude-sonnet-4-20250514`
 
-Claude: Builds CLAUDE.md context, passes --model flag:
-```bash
-CLAUDE_CONTEXT=""
-if [ -f "$HOME/.claude/CLAUDE.md" ]; then
-  CLAUDE_CONTEXT="$CLAUDE_CONTEXT --append-system-prompt $HOME/.claude/CLAUDE.md"
-fi
-if [ -f "CLAUDE.md" ]; then
-  CLAUDE_CONTEXT="$CLAUDE_CONTEXT --append-system-prompt CLAUDE.md"
-fi
+Claude: Resolves `--model` from the flag (overriding settings), then passes `MODEL: claude-sonnet-4-20250514` to pi-agent.
 
-PI_CMD="pi -p --model claude-sonnet-4-20250514 --thinking low --no-session --no-context-files --approve $CLAUDE_CONTEXT --append-system-prompt \"Git status: ...\" \"refactor this component\""
-bash -c "$PI_CMD 2>&1" &
-```
+### Custom base URL (OpenAI-compatible proxy)
+User: `/pi:delegate write unit tests for this module --endpoint local-proxy`
 
-### Custom base URL (OpenAI-compatible proxy via models.json)
-User: `/pi:delegate write unit tests for this module --provider openai --model gemini-3.6-flash-high`
-
-Claude: Checks `~/.claude/pi.local.json` for `baseUrl`, writes it to `~/.pi/agent/models.json` for the `openai` provider, then runs:
-```bash
-CLAUDE_CONTEXT=""
-if [ -f "$HOME/.claude/CLAUDE.md" ]; then
-  CLAUDE_CONTEXT="$CLAUDE_CONTEXT --append-system-prompt $HOME/.claude/CLAUDE.md"
-fi
-if [ -f "CLAUDE.md" ]; then
-  CLAUDE_CONTEXT="$CLAUDE_CONTEXT --append-system-prompt CLAUDE.md"
-fi
-
-PI_CMD="pi -p --provider openai --model gemini-3.6-flash-high --thinking low --no-session --no-context-files --approve $CLAUDE_CONTEXT \"write unit tests for this module\""
-bash -c "$PI_CMD 2>&1" &
-```
+Claude: Resolves the `local-proxy` endpoint from settings, extracts its `baseUrl`, and passes it to pi-agent, which writes it to the agent-dir `models.json` (default `~/.pi/agent/models.json`) before running pi.
 
 ### Read-only analysis
 User: `/pi:delegate audit the security of this codebase --tools read,grep,find,ls`
 
-Claude: Builds CLAUDE.md context, passes --tools to restrict pi to read-only tools:
-```bash
-CLAUDE_CONTEXT=""
-if [ -f "$HOME/.claude/CLAUDE.md" ]; then
-  CLAUDE_CONTEXT="$CLAUDE_CONTEXT --append-system-prompt $HOME/.claude/CLAUDE.md"
-fi
-if [ -f "CLAUDE.md" ]; then
-  CLAUDE_CONTEXT="$CLAUDE_CONTEXT --append-system-prompt CLAUDE.md"
-fi
+Claude: Passes `TOOLS: read,grep,find,ls` to pi-agent so pi is restricted to read-only tools.
 
-PI_CMD="pi -p --thinking low --tools read,grep,find,ls --no-session --no-context-files --approve $CLAUDE_CONTEXT \"audit the security of this codebase\""
-bash -c "$PI_CMD 2>&1" &
-```
+### No git context, just conceptual
+User: `/pi:delegate explain how React reconciliation works --no-git`
 
-### No file context, just conceptual
-User: `/pi:delegate explain how React reconciliation works --no-files`
-
-Claude: Builds CLAUDE.md context, sends the prompt:
-```bash
-CLAUDE_CONTEXT=""
-if [ -f "$HOME/.claude/CLAUDE.md" ]; then
-  CLAUDE_CONTEXT="$CLAUDE_CONTEXT --append-system-prompt $HOME/.claude/CLAUDE.md"
-fi
-if [ -f "CLAUDE.md" ]; then
-  CLAUDE_CONTEXT="$CLAUDE_CONTEXT --append-system-prompt CLAUDE.md"
-fi
-
-PI_CMD="pi -p --thinking low --no-session --no-context-files --approve $CLAUDE_CONTEXT \"explain how React reconciliation works\""
-bash -c "$PI_CMD 2>&1" &
-```
+Claude: Passes `NO_GIT: true` along with the task description to pi-agent, so it skips collecting git status/log context.
 
 ## Important Notes
 
 - pi MUST be installed globally. The skill checks and blocks if not found.
-- The skill uses `pi -p` (print mode) for all tasks — this is non-interactive and produces text output.
-- Settings in `.claude/pi.local.json` and `.claude/pi.json` are on the reading path — shared settings (`.claude/pi.json`) is tracked, personal settings (`.claude/pi.local.json`) is gitignored by `**/.claude/*.local.*`.
-- `--base-url` writes to `~/.pi/agent/models.json` (pi's global provider config) — this is a one-time setup per endpoint, not per-session.
-- `--no-session` prevents pi from creating session files.
-- `--no-context-files` prevents pi from reading its own AGENTS.md/CLAUDE.md (which could conflict with the current project's context).
-- `--approve` skips any project trust prompts (non-interactive mode).
-- **CLAUDE.md context is always passed** via `--append-system-prompt` as file paths — `~/.claude/CLAUDE.md` (user global) and `./CLAUDE.md` (project). pi reads them automatically.
+- **Never run pi directly — always delegate to `pi:pi-agent`.** The agent is the plugin's single execution path and owns backgrounding, verification, and error handling.
+- Settings are shared with `/pi:review` via the same file chain (`.claude/pi.local.json`, `.claude/pi.json`, `~/.claude/pi.local.json`) and the same endpoint-first format.
+- `--no-session` prevents pi from creating session files; `--no-context-files` prevents pi from reading its own AGENTS.md/CLAUDE.md (which could conflict with the current project's context); `--approve` skips any project trust prompts. The pi-agent adds these.
+- **CLAUDE.md context is always passed** by pi-agent via `--append-system-prompt` as file paths — `~/.claude/CLAUDE.md` (user global) and `./CLAUDE.md` (project).
 - To configure pi (provider, model, base URL), run `/pi:setup` instead of passing flags manually.
-- Git context is passed via `--append-system-prompt` as structured text.
