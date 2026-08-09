@@ -204,6 +204,7 @@ fi
 
 ```bash
 if [ ! -s "$DIFF_FILE" ] && [ -z "$HAS_EXPLICIT_TARGET" ] && [ -z "$TASK_TEXT" ]; then
+  rm -f "$DIFF_FILE" "$GIT_FILE"   # clean up temp files created above
   echo "No uncommitted changes to review — the working tree is clean. Use --branch, --diff, or a PR number."
   exit 0
 fi
