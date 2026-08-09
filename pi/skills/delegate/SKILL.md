@@ -139,6 +139,12 @@ elif echo "$FLAGS_REGION" | grep -q -- '--model'; then
     [ -n "$EP_MATCH" ] && ENDPOINT=$(resolve_env "$EP_MATCH")
   fi
 fi
+# CLI --api-key: a key the user typed explicitly overrides the config-file key.
+# It is already in the user's prompt, so passing it to pi-agent is not a config-secret leak.
+if echo "$FLAGS_REGION" | grep -q -- '--api-key'; then
+  CLI_API_KEY=$(echo "$FLAGS_REGION" | sed -n 's/.*--api-key[= ]\([^ ]*\).*/\1/p' | head -1)
+  [ -n "$CLI_API_KEY" ] && API_KEY=$(resolve_env "$CLI_API_KEY")
+fi
 # Re-resolve provider/baseUrl/apiKey for the (possibly CLI-selected) endpoint, and honor
 # CLI_MODEL explicitly (a CLI --model must win over any configured defaultModel).
 if [ -n "$ENDPOINT" ]; then
@@ -283,6 +289,7 @@ MODE: delegate
 TASK: <task description>
 PROVIDER: <resolved or empty — leave pi's default>
 MODEL: <resolved or empty — leave pi's default>
+API_KEY: <CLI --api-key value only, or empty — a key the user typed explicitly overrides the config key; config-file keys stay in the agent's own read, never passed>
 ENDPOINT: <resolved endpoint key or empty — lets the pi-agent read credentials from the right endpoint (non-secret)>
 AGENT_DIR: <optional — pi agent dir; default ~/.pi/agent. Set to a worktree-local path (e.g. .pi-agent) in sandboxed/git-worktree sessions so pi state stays inside the project>
 THINKING: <resolved, default max>
@@ -292,7 +299,7 @@ NO_GIT: <true if --no-git>
 APPEND_PATHS: <(omit — the pi-agent adds CLAUDE.md itself, and collects git context per NO_GIT)>
 ```
 
-**Do NOT pass `API_KEY` or `BASE_URL`** — the pi-agent reads them from the settings files itself (so the actual key/URL never enters the model's context). Only pass non-sensitive config (provider/model/thinking/tools/endpoint keys).
+**Do NOT pass a config-file `API_KEY` or `BASE_URL`** — the pi-agent reads them from the settings files itself (so config secrets never enter the model's context). The only key that may be passed is a CLI `--api-key` the user typed explicitly, which overrides the config key.
 
 The pi-agent handles: agent-dir resolution, CLAUDE.md context, git context (unless `--no-git`), command construction, background execution (no timeout), and verification via `git diff --stat`.
 
