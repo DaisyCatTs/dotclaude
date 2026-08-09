@@ -1,6 +1,6 @@
 {
   "name": "pi",
-  "version": "0.1.3",
+  "version": "0.2.0",
   "description": "Bridges to pi (dev/pi), a minimal terminal coding harness. Delegates tasks to pi CLI for execution.",
   "author": {
     "name": "Frad LEE",
@@ -12,6 +12,9 @@
     "coding-agent",
     "ai-agent",
     "bridge"
+  ],
+  "agents": [
+    "./agents/pi-agent.md"
   ],
   "commands": [
     "./skills/delegate/",
