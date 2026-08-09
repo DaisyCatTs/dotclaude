@@ -193,7 +193,7 @@ Then stop — do not proceed to delegate.
 
 ### `--doctor` flag
 
-When `$ARGUMENTS` is exactly `--doctor`, run a comprehensive configuration check. First run the "Reading settings" snippet above so `$PROVIDER`/`$MODEL`/`$BASE_URL`/`$API_KEY` are populated — the doctor script prints them, and running it before reading settings would wrongly report "pi default"/"not set". Then run the script in `references/doctor.md`.
+When `$ARGUMENTS` is exactly `--doctor`, run a comprehensive configuration check. **Delegate it to `pi:pi-agent` with `MODE: doctor`** — the agent holds `Bash(pi:*)` (which delegate's allowed-tools deliberately does not, to enforce the delegation contract), so it can run the pi installation/connectivity probes in `references/doctor.md`. Pass the resolved `$PROVIDER`/`$MODEL`/`$BASE_URL`/`$API_KEY` (from the "Reading settings" snippet above) as inputs; the agent runs the doctor script against them and returns the check results.
 
 ## Argument Parsing
 

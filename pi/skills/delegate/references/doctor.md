@@ -37,15 +37,17 @@ echo "   Thinking: ${THINKING:-max}"
 # 4. Test connectivity
 echo ""
 echo -n "4. Connectivity test: "
+# Resolve the agent dir the same way pi-agent does (matches AGENT_DIR / PI_CODING_AGENT_DIR).
+AGENT_DIR="${AGENT_DIR:-${PI_CODING_AGENT_DIR:-$HOME/.pi/agent}}"
 if [ -n "$BASE_URL" ]; then
-  mkdir -p "$HOME/.pi/agent"
-  EXISTING=$(cat "$HOME/.pi/agent/models.json" 2>/dev/null || echo '{}')
+  mkdir -p "$AGENT_DIR"
+  EXISTING=$(cat "$AGENT_DIR/models.json" 2>/dev/null || echo '{}')
   echo "$EXISTING" | jq --arg provider "${PROVIDER:-openai}" \
     --arg baseUrl "$BASE_URL" \
     '.providers[$provider] = (.providers[$provider] // {}) |
      .providers[$provider].baseUrl = $baseUrl' \
-    > "$HOME/.pi/agent/models.json.tmp" && \
-    mv "$HOME/.pi/agent/models.json.tmp" "$HOME/.pi/agent/models.json"
+    > "$AGENT_DIR/models.json.tmp" && \
+    mv "$AGENT_DIR/models.json.tmp" "$AGENT_DIR/models.json"
 fi
 
 TEST_OUTPUT=$(pi -p --provider "${PROVIDER:-openai}" --model "${MODEL:-gemini-3.6-flash-high}"${API_KEY:+ --api-key "$API_KEY"} --thinking low --no-session --no-context-files --approve "Reply with exactly: OK" 2>&1)

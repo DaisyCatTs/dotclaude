@@ -95,7 +95,7 @@ Then stop — do not proceed to setup.
 When `$ARGUMENTS` includes `--test`, run a quick connectivity test:
 
 ```bash
-pi -p --provider "$PROVIDER" --model "$MODEL" --thinking low --no-session --no-context-files --approve "Reply with exactly: OK. Model: <model-name>"
+pi -p ${PROVIDER:+--provider "$PROVIDER"} --model "$MODEL" --thinking low --no-session --no-context-files --approve "Reply with exactly: OK. Model: <model-name>"
 ```
 
 Report the result: "pi responded successfully with model <name>" on exit 0, or the error on failure.
@@ -181,12 +181,16 @@ echo "$EXISTING" | jq \
 Run the test automatically after writing config. pi has no `--base-url` flag — a custom endpoint goes through `~/.pi/agent/models.json`. Write it there first (idempotent: register baseUrl + model, skip when unchanged), then test:
 
 ```bash
+# Resolve the agent dir the same way pi-agent does, so setup writes to the
+# endpoint pi actually reads (matches AGENT_DIR / PI_CODING_AGENT_DIR overrides).
+AGENT_DIR="${AGENT_DIR:-${PI_CODING_AGENT_DIR:-$HOME/.pi/agent}}"
+
 # Ensure the endpoint is in the agent-dir models.json (pi reads endpoints from there)
 # Use PROVIDER_KEY for the write so $PROVIDER (possibly empty = pi's default) is untouched.
 if [ -n "$BASE_URL" ]; then
   PROVIDER_KEY="${PROVIDER:-openai}"
-  mkdir -p "$HOME/.pi/agent"
-  EXISTING=$(cat "$HOME/.pi/agent/models.json" 2>/dev/null || echo '{}')
+  mkdir -p "$AGENT_DIR"
+  EXISTING=$(cat "$AGENT_DIR/models.json" 2>/dev/null || echo '{}')
   NEW=$(echo "$EXISTING" | jq -c --arg provider "$PROVIDER_KEY" --arg baseUrl "$BASE_URL" --arg model "$MODEL" \
     '.providers[$provider] = (.providers[$provider] // {}) |
      .providers[$provider].baseUrl = $baseUrl |
@@ -197,7 +201,7 @@ if [ -n "$BASE_URL" ]; then
        )
      else . end')
   if [ "$NEW" != "$EXISTING" ]; then
-    echo "$NEW" > "$HOME/.pi/agent/models.json.tmp" && mv "$HOME/.pi/agent/models.json.tmp" "$HOME/.pi/agent/models.json"
+    echo "$NEW" > "$AGENT_DIR/models.json.tmp" && mv "$AGENT_DIR/models.json.tmp" "$AGENT_DIR/models.json"
   fi
 fi
 
