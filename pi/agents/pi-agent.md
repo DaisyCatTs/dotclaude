@@ -51,9 +51,10 @@ You are the execution layer for the pi plugin. You run the `pi` CLI (`@earendil-
    for f in "$HOME/.claude/pi.local.json" ".claude/pi.json" ".claude/pi.local.json"; do
      [ -f "$f" ] && CONFIG=$(jq -s '.[0] * .[1]' /dev/stdin "$f" 2>/dev/null <<<"$CONFIG" || echo "$CONFIG")
    done
-   # Endpoint-first with flat fallback (matches the skills).
+   # Endpoint-first with flat fallback (matches the skills). A CLI-passed API_KEY
+   # (step 1) wins — only read the config key when the caller did not pass one.
    EP="${ENDPOINT:-$(echo "$CONFIG" | jq -r '.defaultEndpoint // ""')}"
-   API_KEY=$(resolve_env "$(echo "$CONFIG" | jq -r --arg e "$EP" 'if $e != "" then .endpoints[$e].apiKey // "" else (.apiKey // "") end')")
+   [ -z "$API_KEY" ] && API_KEY=$(resolve_env "$(echo "$CONFIG" | jq -r --arg e "$EP" 'if $e != "" then .endpoints[$e].apiKey // "" else (.apiKey // "") end')")
    BASE_URL=$(resolve_env "$(echo "$CONFIG" | jq -r --arg e "$EP" 'if $e != "" then .endpoints[$e].baseUrl // "" else (.baseUrl // "") end')")
    ```
    If `API_KEY` is empty after resolution, fall back to the caller-provided `PROVIDER`-specific env var (e.g. `OPENAI_API_KEY`) which pi reads itself.
