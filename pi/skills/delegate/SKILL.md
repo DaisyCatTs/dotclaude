@@ -239,7 +239,7 @@ Then stop — do not proceed to delegate.
 
 ### `--doctor` flag
 
-When `$ARGUMENTS` is exactly `--doctor`, run a comprehensive configuration check. **Delegate it to `pi:pi-agent` with `MODE: doctor`** — the agent holds `Bash(pi:*)` (which delegate's allowed-tools deliberately does not, to enforce the delegation contract), so it can run the pi installation/connectivity probes in `references/doctor.md`. Pass the resolved `$PROVIDER`/`$MODEL`/`$BASE_URL`/`$API_KEY` (from the "Reading settings" snippet above) as inputs; the agent runs the doctor script against them and returns the check results.
+When `$ARGUMENTS` is exactly `--doctor`, run a comprehensive configuration check. **Delegate it to `pi:pi-agent` with `MODE: doctor`** — the agent holds `Bash(pi:*)` (which delegate's allowed-tools deliberately does not, to enforce the delegation contract), so it can run the pi installation/connectivity probes in `references/doctor.md`. Pass the resolved `$PROVIDER`/`$MODEL`/`$THINKING` (and `$ENDPOINT` if a CLI `--endpoint` selected one) as inputs; **do NOT pass `$API_KEY`/`$BASE_URL`** — the pi-agent re-reads them from the settings files itself, so the key never enters the model's context and doctor inherits the agent's endpoint resolution. The agent runs the doctor script and returns the check results.
 
 ## Argument Parsing
 
@@ -283,6 +283,7 @@ MODE: delegate
 TASK: <task description>
 PROVIDER: <resolved or empty — leave pi's default>
 MODEL: <resolved or empty — leave pi's default>
+ENDPOINT: <resolved endpoint key or empty — lets the pi-agent read credentials from the right endpoint (non-secret)>
 AGENT_DIR: <optional — pi agent dir; default ~/.pi/agent. Set to a worktree-local path (e.g. .pi-agent) in sandboxed/git-worktree sessions so pi state stays inside the project>
 THINKING: <resolved, default max>
 TOOLS: <resolved, default read,bash,write,edit,grep,find,ls>

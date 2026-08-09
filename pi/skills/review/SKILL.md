@@ -238,6 +238,7 @@ MODE: review
 TASK: Review the code in the provided diff${TASK_TEXT:+ (task: $TASK_TEXT)}. Use your tools only to read the files mentioned in the diff for context — do NOT search the rest of the codebase, do NOT run git. Focus on correctness, code quality, security, architecture, and testing. For each issue found, report: file:line: severity (HIGH/MEDIUM/LOW) + description + suggested fix. Group findings by severity. If no issues found, explicitly state that the code looks clean.
 PROVIDER: <resolved from settings>
 MODEL: <resolved from settings>
+ENDPOINT: <resolved endpoint key or empty — lets the pi-agent read credentials from the right endpoint (non-secret)>
 THINKING: <resolved, default max>
 TOOLS: <$TOOLS — read, or read,grep,find,ls>
 APPEND_PATHS: <$APPEND_PATHS — CLAUDE.md paths + GIT_FILE + DIFF_FILE; the agent emits each as its own --append-system-prompt>
