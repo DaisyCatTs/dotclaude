@@ -50,7 +50,7 @@ if [ -n "$BASE_URL" ]; then
     mv "$AGENT_DIR/models.json.tmp" "$AGENT_DIR/models.json"
 fi
 
-TEST_OUTPUT=$(pi -p --provider "${PROVIDER:-openai}" --model "${MODEL:-gemini-3.6-flash-high}"${API_KEY:+ --api-key "$API_KEY"} --thinking low --no-session --no-context-files --approve "Reply with exactly: OK" 2>&1)
+TEST_OUTPUT=$(PI_CODING_AGENT_DIR="$AGENT_DIR" pi -p --provider "${PROVIDER:-openai}" --model "${MODEL:-gemini-3.6-flash-high}"${API_KEY:+ --api-key "$API_KEY"} --thinking low --no-session --no-context-files --approve "Reply with exactly: OK" 2>&1)
 TEST_EXIT=$?
 if [ "$TEST_EXIT" -eq 0 ] && echo "$TEST_OUTPUT" | grep -q "OK"; then
   echo "[OK] pi responded successfully"

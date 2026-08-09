@@ -92,10 +92,13 @@ Then stop — do not proceed to setup.
 
 ### `--test` flag
 
-When `$ARGUMENTS` includes `--test`, run a quick connectivity test:
+When `$ARGUMENTS` includes `--test`, run a quick connectivity test. Build the command as an array so each flag is a distinct argument under both bash and zsh (zsh does not word-split an unquoted `${PROVIDER:+--provider ...}` expansion):
 
 ```bash
-pi -p ${PROVIDER:+--provider "$PROVIDER"} --model "$MODEL" --thinking low --no-session --no-context-files --approve "Reply with exactly: OK. Model: <model-name>"
+CMD=(pi -p)
+[ -n "$PROVIDER" ] && CMD+=(--provider "$PROVIDER")
+CMD+=(--model "$MODEL" --thinking low --no-session --no-context-files --approve "Reply with exactly: OK. Model: <model-name>")
+"${CMD[@]}"
 ```
 
 Report the result: "pi responded successfully with model <name>" on exit 0, or the error on failure.
@@ -205,7 +208,10 @@ if [ -n "$BASE_URL" ]; then
   fi
 fi
 
-pi -p ${PROVIDER:+--provider "$PROVIDER"} --model "$MODEL" --thinking low --no-session --no-context-files --approve "Reply with exactly: OK. Model: <model-name>"
+CMD=(pi -p)
+[ -n "$PROVIDER" ] && CMD+=(--provider "$PROVIDER")
+CMD+=(--model "$MODEL" --thinking low --no-session --no-context-files --approve "Reply with exactly: OK. Model: <model-name>")
+"${CMD[@]}"
 ```
 
 Report success or failure to the user.

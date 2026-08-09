@@ -87,10 +87,15 @@ You are the execution layer for the pi plugin. You run the `pi` CLI (`@earendil-
 8. **Assemble the command in an array**, then run it. Arrays keep every flag a distinct argument regardless of shell (zsh does not word-split unquoted variables):
    ```bash
    CMD=(pi -p)
-   # When BASE_URL is set but the caller gave no PROVIDER, pass the models.json key
-   # (PROVIDER_KEY, default openai) so pi actually reaches the custom endpoint instead
-   # of defaulting to its own provider and ignoring the registered baseUrl.
-   [ -n "$PROVIDER" ] && CMD+=(--provider "$PROVIDER") || [ -n "$BASE_URL" ] && CMD+=(--provider "$PROVIDER_KEY")
+   # Provider: use the caller's resolved PROVIDER; else if a custom BASE_URL is set,
+   # use the models.json key (PROVIDER_KEY, default openai) so pi reaches the endpoint.
+   # Explicit if/elif — NOT `A && B || C && D` (left-associative parsing appends an
+   # empty --provider when PROVIDER is set but BASE_URL is empty).
+   if [ -n "$PROVIDER" ]; then
+     CMD+=(--provider "$PROVIDER")
+   elif [ -n "$BASE_URL" ]; then
+     CMD+=(--provider "$PROVIDER_KEY")
+   fi
    [ -n "$MODEL" ] && CMD+=(--model "$MODEL")
    [ -n "$API_KEY" ] && CMD+=(--api-key "$API_KEY")
    CMD+=(--thinking "${THINKING:-max}")
