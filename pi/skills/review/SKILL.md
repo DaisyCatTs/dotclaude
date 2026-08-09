@@ -203,7 +203,7 @@ fi
 **Empty-diff guard (default target only):** if `git diff HEAD` produces no output and no explicit target was given (`HAS_EXPLICIT_TARGET` empty), the working tree is clean — report "No uncommitted changes to review — the working tree is clean. Use `/pi:review --branch <name>`, `/pi:review --diff <range>`, or `/pi:review <PR>` to review committed code." and stop before invoking pi. Run the guard as a command:
 
 ```bash
-if [ ! -s "$DIFF_FILE" ] && [ -z "$HAS_EXPLICIT_TARGET" ]; then
+if [ ! -s "$DIFF_FILE" ] && [ -z "$HAS_EXPLICIT_TARGET" ] && [ -z "$TASK_TEXT" ]; then
   echo "No uncommitted changes to review — the working tree is clean. Use --branch, --diff, or a PR number."
   exit 0
 fi

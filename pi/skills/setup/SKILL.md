@@ -96,7 +96,13 @@ When `$ARGUMENTS` includes `--test`, run a quick connectivity test. Build the co
 
 ```bash
 CMD=(pi -p)
-[ -n "$PROVIDER" ] && CMD+=(--provider "$PROVIDER")
+# Provider: use the resolved PROVIDER; else if a custom BASE_URL is set, use the
+# models.json key (PROVIDER_KEY, default openai) so the probe reaches the custom endpoint.
+if [ -n "$PROVIDER" ]; then
+  CMD+=(--provider "$PROVIDER")
+elif [ -n "$BASE_URL" ]; then
+  CMD+=(--provider "${PROVIDER_KEY:-openai}")
+fi
 CMD+=(--model "$MODEL" --thinking low --no-session --no-context-files --approve "Reply with exactly: OK. Model: <model-name>")
 "${CMD[@]}"
 ```
@@ -168,8 +174,8 @@ echo "$EXISTING" | jq \
   --arg model "${MODEL:-}" \
   --arg baseUrl "${BASE_URL:-}" \
   --arg apiKey "${API_KEY:-}" \
-  '.endpoints[$e] = (.endpoints[$e] // {provider: $provider}) |
-   .endpoints[$e].provider = (if $provider != "" then $provider else .endpoints[$e].provider end) |
+  '.endpoints[$e] = (.endpoints[$e] // {provider: (if $provider != "" then $provider else "openai" end)}) |
+   .endpoints[$e].provider = (if $provider != "" then $provider else (.endpoints[$e].provider // "openai") end) |
    .endpoints[$e].baseUrl = (if $baseUrl != "" then $baseUrl else .endpoints[$e].baseUrl // "" end) |
    .endpoints[$e].apiKey = (if $apiKey != "" then $apiKey else .endpoints[$e].apiKey // "" end) |
    .endpoints[$e].models = ((.endpoints[$e].models // []) + [($model | select(. != ""))] | unique) |
@@ -209,9 +215,16 @@ if [ -n "$BASE_URL" ]; then
 fi
 
 CMD=(pi -p)
-[ -n "$PROVIDER" ] && CMD+=(--provider "$PROVIDER")
+# Provider: use the resolved PROVIDER; else if a custom BASE_URL is set, use the
+# models.json key (PROVIDER_KEY, default openai) so the probe reaches the custom endpoint.
+if [ -n "$PROVIDER" ]; then
+  CMD+=(--provider "$PROVIDER")
+elif [ -n "$BASE_URL" ]; then
+  CMD+=(--provider "${PROVIDER_KEY:-openai}")
+fi
 CMD+=(--model "$MODEL" --thinking low --no-session --no-context-files --approve "Reply with exactly: OK. Model: <model-name>")
-"${CMD[@]}"
+# Pin the probe to the agent dir we just wrote (matches pi-agent's run pattern).
+PI_CODING_AGENT_DIR="$AGENT_DIR" "${CMD[@]}"
 ```
 
 Report success or failure to the user.
