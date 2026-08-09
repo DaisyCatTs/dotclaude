@@ -67,7 +67,9 @@ fi
 Then extract values, resolving environment variable references:
 
 ```bash
-# Resolve env vars in a JSON value: "$VAR" or "${VAR}" → actual value
+# Resolve env vars in a JSON value: "$VAR" or "${VAR}" → actual value.
+# NOTE: requires bash — the `BASH_REMATCH` capture is bash-only; under zsh this
+# returns the literal `$VAR`. Run the config-reading snippet under bash.
 resolve_env() {
   local val="$1"
   while [[ "$val" =~ \$\{?([a-zA-Z_][a-zA-Z0-9_]*)\}? ]]; do

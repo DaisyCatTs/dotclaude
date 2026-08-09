@@ -3,7 +3,7 @@ name: delegate
 description: Delegates a coding task to pi (dev/pi), a minimal terminal coding harness. This skill should be used when the user asks to "use pi", "run pi", "delegate to pi", "let pi handle this", "ask pi to", "have pi do", or invokes /pi:delegate. It bridges the current Claude Code context to the pi CLI, passing relevant files, git state, and the task description for execution by the pi-agent.
 user-invocable: true
 argument-hint: "<task description> [--endpoint ENDPOINT] [--provider PROVIDER] [--model MODEL] [--api-key KEY] [--thinking LEVEL] [--tools TOOL_LIST] [--exclude-tools TOOL_LIST] [--no-git] | --edit-config [--local|--shared|--global] | --list-models | --doctor"
-allowed-tools: ["Task", "Bash(git:*)", "Bash(jq:*)", "Bash(ls:*)", "Bash(find:*)", "Bash(cat:*)", "Bash(mkdir:*)", "Bash(mv:*)", "Bash(echo:*)", "Bash(command:*)", "Bash(grep:*)", "Bash(head:*)", "Bash(vi:*)", "Bash(pi:*)", "Read", "Grep", "Glob"]
+allowed-tools: ["Task", "Bash(git:*)", "Bash(jq:*)", "Bash(ls:*)", "Bash(find:*)", "Bash(cat:*)", "Bash(mkdir:*)", "Bash(mv:*)", "Bash(echo:*)", "Bash(command:*)", "Bash(grep:*)", "Bash(head:*)", "Bash(vi:*)", "Read", "Grep", "Glob"]
 ---
 
 # CRITICAL: pi CLI Integration
@@ -93,7 +93,9 @@ fi
 Then extract values, resolving environment variable references. Endpoint-first with flat-field fallback:
 
 ```bash
-# Resolve env vars in a JSON value: "$VAR" or "${VAR}" → actual value
+# Resolve env vars in a JSON value: "$VAR" or "${VAR}" → actual value.
+# NOTE: requires bash — the `BASH_REMATCH` capture is bash-only; under zsh this
+# returns the literal `$VAR`. Run the config-reading snippet under bash.
 resolve_env() {
   local val="$1"
   while [[ "$val" =~ \$\{?([a-zA-Z_][a-zA-Z0-9_]*)\}? ]]; do

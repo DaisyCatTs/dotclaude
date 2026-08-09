@@ -61,8 +61,20 @@ You are the execution layer for the pi plugin. You run the `pi` CLI (`@earendil-
      fi
    fi
    ```
-5. **Collect git context** (delegate, unless `NO_GIT` is `true`; review already sends `GIT_FILE` via `APPEND_PATHS`) — for delegate, capture `git status --short`, `git diff --stat`, `git log --oneline -10`, and the current branch into a temp file. Record it as `GIT_FILE` and add it to `APPEND_PATHS` (plus `CLEANUP_FILES` so it is removed when pi exits). This gives pi the same situational awareness the caller has.
-6. **Build the append context as `--append-system-prompt` pairs** — the caller passes `APPEND_PATHS` (CLAUDE.md files, and for review the git-context and diff files). Convert each to its own `--append-system-prompt <path>` pair, collected in an array. **Do NOT accumulate into a space-joined string and expand unquoted** — under zsh that expansion is a single argument, so pi receives the literal string `--append-system-prompt /path/CLAUDE.md` as one token and appends it as text instead of reading the file:
+5. **Collect git + CLAUDE.md context** (delegate; review already sends these via `APPEND_PATHS`) — for delegate, ensure `APPEND_PATHS` carries the user and project CLAUDE.md files (the caller omits them), then capture `git status --short`, `git diff --stat`, `git log --oneline -10`, and the current branch into a temp file. Record the git file as `GIT_FILE` and add it to `APPEND_PATHS` (plus `CLEANUP_FILES` so it is removed when pi exits). This gives pi the same situational awareness the caller has:
+   ```bash
+   # Delegate: caller omits APPEND_PATHS — add CLAUDE.md here
+   [ -f "$HOME/.claude/CLAUDE.md" ] && APPEND_PATHS+=("$HOME/.claude/CLAUDE.md")
+   [ -f "CLAUDE.md" ] && APPEND_PATHS+=("CLAUDE.md")
+   # Delegate: collect git context unless --no-git
+   if [ "$NO_GIT" != "true" ]; then
+     GIT_FILE=$(mktemp /tmp/pi-gitctx.XXXXXX)
+     { git status --short; git diff --stat; git log --oneline -10; git branch --show-current; } > "$GIT_FILE"
+     APPEND_PATHS+=("$GIT_FILE")
+     CLEANUP_FILES+=("$GIT_FILE")
+   fi
+   ```
+6. **Build the append context as `--append-system-prompt` pairs** — the caller passes `APPEND_PATHS` (CLAUDE.md files, and for review the git-context and diff files; for delegate these are collected in step 5). Convert each to its own `--append-system-prompt <path>` pair, collected in an array. **Do NOT accumulate into a space-joined string and expand unquoted** — under zsh that expansion is a single argument, so pi receives the literal string `--append-system-prompt /path/CLAUDE.md` as one token and appends it as text instead of reading the file:
    ```bash
    APPENDS=()
    for p in "${APPEND_PATHS[@]}"; do
