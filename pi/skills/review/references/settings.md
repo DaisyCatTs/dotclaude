@@ -89,9 +89,39 @@ MODEL=$(resolve_env "$(echo "$CONFIG" | jq -r --arg e "$ENDPOINT" 'if $e != "" t
 BASE_URL=$(resolve_env "$(echo "$CONFIG" | jq -r --arg e "$ENDPOINT" 'if $e != "" then (.endpoints[$e].baseUrl // "") else (.baseUrl // "") end')")
 API_KEY=$(resolve_env "$(echo "$CONFIG" | jq -r --arg e "$ENDPOINT" 'if $e != "" then (.endpoints[$e].apiKey // "") else (.apiKey // "") end')")
 THINKING=$(resolve_env "$(echo "$CONFIG" | jq -r '.thinking // "max"')")
+# Model ownership check: if a defaultModel is set but does not belong to the active
+# endpoint's models list (a stale model from a previous --endpoint switch), fall back
+# to the endpoint's first model so provider and model stay consistent.
+if [ -n "$ENDPOINT" ] && [ -n "$MODEL" ] && [ "$MODEL" != "null" ]; then
+  IN_ENDPOINT=$(echo "$CONFIG" | jq -r --arg e "$ENDPOINT" --arg m "$MODEL" '(.endpoints[$e].models // []) | index($m) // -1')
+  if [ "$IN_ENDPOINT" = "-1" ]; then
+    MODEL=$(resolve_env "$(echo "$CONFIG" | jq -r --arg e "$ENDPOINT" '.endpoints[$e].models[0] // ""')")
+  fi
+fi
 # If model still empty, use the first model from the endpoint (handles defaultModel: "")
 if [ -z "$MODEL" ] || [ "$MODEL" = "null" ]; then
   MODEL=$(resolve_env "$(echo "$CONFIG" | jq -r --arg e "$ENDPOINT" '.endpoints[$e].models[0] // ""')")
+fi
+
+# CLI override: --endpoint / --model re-resolve the active endpoint (highest priority).
+# A CLI --endpoint selects that endpoint; a CLI --model without --endpoint scans all
+# endpoints for the first whose models list contains it.
+if [[ "$ARGUMENTS" == *"--endpoint"* ]]; then
+  CLI_EP=$(echo "$ARGUMENTS" | sed -n 's/.*--endpoint[= ]\([^ ]*\).*/\1/p' | head -1)
+  [ -n "$CLI_EP" ] && ENDPOINT=$(resolve_env "$CLI_EP")
+elif [[ "$ARGUMENTS" == *"--model"* ]]; then
+  CLI_MODEL=$(echo "$ARGUMENTS" | sed -n 's/.*--model[= ]\([^ ]*\).*/\1/p' | head -1)
+  if [ -n "$CLI_MODEL" ]; then
+    EP_MATCH=$(echo "$CONFIG" | jq -r --arg m "$CLI_MODEL" '(.endpoints | to_entries[] | select((.value.models // []) | index($m)) | .key) | first // ""')
+    [ -n "$EP_MATCH" ] && ENDPOINT=$(resolve_env "$EP_MATCH")
+  fi
+fi
+# Re-resolve provider/model/baseUrl for the (possibly CLI-selected) endpoint.
+if [ -n "$ENDPOINT" ]; then
+  PROVIDER=$(resolve_env "$(echo "$CONFIG" | jq -r --arg e "$ENDPOINT" '.endpoints[$e].provider // ""')")
+  MODEL=$(resolve_env "$(echo "$CONFIG" | jq -r --arg e "$ENDPOINT" '(.defaultModel // .endpoints[$e].models[0] // "")')")
+  BASE_URL=$(resolve_env "$(echo "$CONFIG" | jq -r --arg e "$ENDPOINT" '.endpoints[$e].baseUrl // ""')")
+  API_KEY=$(resolve_env "$(echo "$CONFIG" | jq -r --arg e "$ENDPOINT" '.endpoints[$e].apiKey // ""')")
 fi
 ```
 
