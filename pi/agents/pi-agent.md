@@ -41,13 +41,13 @@ You are the execution layer for the pi plugin. You run the `pi` CLI (`@earendil-
    AGENT_DIR="${AGENT_DIR:-${PI_CODING_AGENT_DIR:-$HOME/.pi/agent}}"
    ```
    Running pi with a custom `AGENT_DIR` keeps all pi state inside the current project — required in git-worktree/sandboxed sessions where writing `$HOME/.pi` would be rejected as out-of-worktree. When set, export it to pi (`PI_CODING_AGENT_DIR="$AGENT_DIR"`).
-4. **Ensure the endpoint is in models.json (idempotent merge)** — pi has no `--base-url` flag; it reads custom endpoints from `$AGENT_DIR/models.json`. When `BASE_URL` is non-empty, merge `baseUrl` and register the current `MODEL` (so pi stops warning "Model not found" and the model shows in `--list-models`). Compare the **compact** result against the existing content and write only when it differs — a matching value skips the write, avoiding an out-of-worktree write on every run once configured. If `PROVIDER` is empty, use `openai` here only — custom endpoints are OpenAI-compatible:
+4. **Ensure the endpoint is in models.json (idempotent merge)** — pi has no `--base-url` flag; it reads custom endpoints from `$AGENT_DIR/models.json`. When `BASE_URL` is non-empty, merge `baseUrl` and register the current `MODEL` (so pi stops warning "Model not found" and the model shows in `--list-models`). Compare the **compact** result against the existing content and write only when it differs — a matching value skips the write, avoiding an out-of-worktree write on every run once configured. **Use a separate `PROVIDER_KEY` for the models.json write so the caller's `PROVIDER` (possibly empty, meaning "let pi choose its default") is never mutated or leaked into the pi command.** `openai` is only a fallback for the models.json key, since custom endpoints are OpenAI-compatible:
    ```bash
-   PROVIDER="${PROVIDER:-openai}"
    if [ -n "$BASE_URL" ]; then
+     PROVIDER_KEY="${PROVIDER:-openai}"
      mkdir -p "$AGENT_DIR"
      EXISTING=$(cat "$AGENT_DIR/models.json" 2>/dev/null || echo '{}')
-     NEW=$(echo "$EXISTING" | jq -c --arg provider "$PROVIDER" --arg baseUrl "$BASE_URL" --arg model "$MODEL" \
+     NEW=$(echo "$EXISTING" | jq -c --arg provider "$PROVIDER_KEY" --arg baseUrl "$BASE_URL" --arg model "$MODEL" \
        '.providers[$provider] = (.providers[$provider] // {}) |
         .providers[$provider].baseUrl = $baseUrl |
         if $model != "" then

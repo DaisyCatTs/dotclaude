@@ -145,15 +145,14 @@ if [ -f "$HOME/.claude/pi.local.json" ]; then
   EXISTING=$(cat "$HOME/.claude/pi.local.json")
 fi
 
-# Endpoint name (default "local-proxy")
-ENDPOINT="${ENDPOINT:-local-proxy}"
-
-# Track whether --endpoint was explicitly given (vs. the default). When explicit,
-# make it the default endpoint so provider/model resolve consistently — otherwise
-# a second /pi:setup --endpoint b would keep the stale first endpoint as default.
+# Endpoint target: an explicit --endpoint names the key to write; otherwise reconfigure
+# the existing defaultEndpoint (so a plain /pi:setup reaches the endpoint the skills read).
 ENDPOINT_IS_EXPLICIT="0"
 if [[ "$ARGUMENTS" == *"--endpoint"* ]]; then
   ENDPOINT_IS_EXPLICIT="1"
+  ENDPOINT="${ENDPOINT:-local-proxy}"
+else
+  ENDPOINT="${ENDPOINT:-$(echo "$EXISTING" | jq -r '.defaultEndpoint // "local-proxy"')}"
 fi
 
 # Merge into the endpoints map — only override non-empty fields.
@@ -183,11 +182,12 @@ Run the test automatically after writing config. pi has no `--base-url` flag —
 
 ```bash
 # Ensure the endpoint is in the agent-dir models.json (pi reads endpoints from there)
-PROVIDER="${PROVIDER:-openai}"
+# Use PROVIDER_KEY for the write so $PROVIDER (possibly empty = pi's default) is untouched.
 if [ -n "$BASE_URL" ]; then
+  PROVIDER_KEY="${PROVIDER:-openai}"
   mkdir -p "$HOME/.pi/agent"
   EXISTING=$(cat "$HOME/.pi/agent/models.json" 2>/dev/null || echo '{}')
-  NEW=$(echo "$EXISTING" | jq -c --arg provider "$PROVIDER" --arg baseUrl "$BASE_URL" --arg model "$MODEL" \
+  NEW=$(echo "$EXISTING" | jq -c --arg provider "$PROVIDER_KEY" --arg baseUrl "$BASE_URL" --arg model "$MODEL" \
     '.providers[$provider] = (.providers[$provider] // {}) |
      .providers[$provider].baseUrl = $baseUrl |
      if $model != "" then
@@ -201,7 +201,7 @@ if [ -n "$BASE_URL" ]; then
   fi
 fi
 
-pi -p --provider "$PROVIDER" --model "$MODEL" --thinking low --no-session --no-context-files --approve "Reply with exactly: OK. Model: <model-name>"
+pi -p ${PROVIDER:+--provider "$PROVIDER"} --model "$MODEL" --thinking low --no-session --no-context-files --approve "Reply with exactly: OK. Model: <model-name>"
 ```
 
 Report success or failure to the user.
