@@ -65,6 +65,13 @@ GEMINI_SIZES = {"1K", "2K", "4K"}
 ASPECT_RATIOS = ["1:1", "2:3", "3:2", "3:4", "4:3", "4:5", "5:4", "9:16", "16:9", "21:9"]
 QUALITIES = ["low", "medium", "high", "auto"]
 
+# Browser-like User-Agent for downloading generated-image URLs. Several provider
+# hosts (x.ai imgen, ...) answer the default `Python-urllib/*` UA with 403.
+_DOWNLOAD_USER_AGENT = (
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 "
+    "(KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36"
+)
+
 
 # --------------------------------------------------------------------------- #
 # Gemini backend (native google-genai SDK)
@@ -171,7 +178,8 @@ def save_images_openai(data_items, out_base: Path) -> list[Path]:
             data = base64.b64decode(b64)
         elif url:
             print(f"  Fetching: {url}", file=sys.stderr)
-            with urllib.request.urlopen(url, timeout=180) as r:  # noqa: S310 — url comes from the API response
+            req = urllib.request.Request(url, headers={"User-Agent": _DOWNLOAD_USER_AGENT})
+            with urllib.request.urlopen(req, timeout=180) as r:  # noqa: S310 — url comes from the API response
                 data = r.read()
         else:
             continue
