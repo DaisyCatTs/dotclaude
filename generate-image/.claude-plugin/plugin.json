@@ -1,0 +1,22 @@
+{
+  "name": "generate-image",
+  "displayName": "Generate Image",
+  "version": "0.1.0",
+  "license": "MIT",
+  "description": "Generate or edit images via two backends: Google Gemini (gemini-3-pro-image) or any OpenAI-compatible endpoint (gpt-image-2, dall-e-3)",
+  "keywords": [
+    "image-generation",
+    "image-edit",
+    "gemini",
+    "openai",
+    "gpt-image",
+    "dall-e"
+  ],
+  "author": {
+    "name": "Frad LEE",
+    "email": "fradser@gmail.com"
+  },
+  "commands": [
+    "./skills/generate-image/"
+  ]
+}

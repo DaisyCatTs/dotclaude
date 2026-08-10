@@ -1,15 +1,13 @@
 {
   "name": "office",
   "displayName": "Office",
-  "version": "0.7.3",
+  "version": "0.7.4",
   "license": "MIT",
-  "description": "Office productivity skills for patent applications, PRD generation, image and video generation, Remotion programmatic video authoring, and AI writing trope detection",
+  "description": "Office productivity skills for patent applications, PRD generation, video generation, Remotion programmatic video authoring, and AI writing trope detection",
   "keywords": [
     "patent",
     "prd",
-    "image-generation",
     "video-generation",
-    "gemini",
     "seedance",
     "remotion",
     "programmatic-video",
@@ -27,7 +25,6 @@
   "commands": [
     "./skills/patent-architect/",
     "./skills/create-prd/",
-    "./skills/generate-image/",
     "./skills/generate-video/"
   ]
 }

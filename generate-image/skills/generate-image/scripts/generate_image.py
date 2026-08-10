@@ -35,7 +35,7 @@ import sys
 import urllib.request
 from pathlib import Path
 
-# --- locate the shared progressive-env helper (office/lib/progressive_env.py) ---
+# --- locate the progressive-env helper (generate-image/lib/progressive_env.py) ---
 _LIB = None
 for _base in Path(__file__).resolve().parents:
     if (_base / "lib" / "progressive_env.py").is_file():
@@ -45,7 +45,7 @@ if _LIB is None and (_root := __import__("os").environ.get("CLAUDE_PLUGIN_ROOT")
     if (Path(_root) / "lib" / "progressive_env.py").is_file():
         _LIB = Path(_root) / "lib"
 if _LIB is None:
-    sys.exit("Error: could not locate office/lib/progressive_env.py")
+    sys.exit("Error: could not locate generate-image/lib/progressive_env.py")
 sys.path.insert(0, str(_LIB))
 
 from progressive_env import fail, register_env_dirs, resolve  # noqa: E402
