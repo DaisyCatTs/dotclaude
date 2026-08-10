@@ -1,8 +1,8 @@
 {
   "name": "memory",
   "displayName": "Memory",
-  "version": "0.1.3",
-  "description": "Active memory writing + manual /memory:consolidate — no auto-consolidation",
+  "version": "0.1.5",
+  "description": "Active memory writing + manual /memory:consolidate with theme clustering, ground-truth prune, adversarial pass, and machine validator — no auto-consolidation",
   "author": {
     "name": "Frad LEE",
     "email": "fradser@gmail.com"

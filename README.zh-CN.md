@@ -220,7 +220,7 @@ claude plugin install utils@frad-dotclaude
 
 ### [memory](memory/)
 
-整理 Claude Code 项目的记忆——私人 harness 记忆（~/.claude/projects/<escaped-cwd>/memory）与仓库记忆（docs/memory/），视为单一无分层存储；Stop 时按 24 小时去重自动整理，也提供无需参数的手动 skill。
+对话中主动写入记忆，加上手动 `/memory:consolidate`——无自动整理。保持 harness 记忆（`~/.claude/projects/<escaped-cwd>/memory`）与仓库 `.memory/` 等幂。Consolidate 失败封闭：主题聚类、实用过期剪枝、对照当前代码库事实校验、对抗性二审，以及机器校验脚本（`validate-consolidate.py`）检查簇覆盖、报告 path 行与隐私 scrub。
 
 **安装：**
 ```bash

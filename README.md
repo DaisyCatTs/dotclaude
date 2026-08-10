@@ -220,7 +220,7 @@ claude plugin install utils@frad-dotclaude
 
 ### [memory](memory/)
 
-Consolidates a Claude Code project's memory — the private harness memory (~/.claude/projects/<escaped-cwd>/memory) and the repo-local memory (docs/memory/) — as one unlayered store, auto-consolidating on Stop with a 24h debounce and via a single no-argument skill.
+Active memory writing during conversation, plus manual `/memory:consolidate` — no auto-consolidation. Keeps harness memory (`~/.claude/projects/<escaped-cwd>/memory`) and repo-local `.memory/` idempotent. Consolidate is fail-closed: theme clustering, practical-expiry prune, ground-truth verify, adversarial second pass, and a machine validator (`validate-consolidate.py`) for cluster coverage, report path rows, and privacy scrub.
 
 **Installation:**
 ```bash
