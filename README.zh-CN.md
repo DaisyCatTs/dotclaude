@@ -1,11 +1,11 @@
-# Frad 的 Claude Code 插件集 ![](https://img.shields.io/badge/plugins-21-blue)
+# Frad 的 Claude Code 插件集 ![](https://img.shields.io/badge/plugins-22-blue)
 
 [![MIT License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 [![Claude Code](https://img.shields.io/badge/Claude%20Code-v0.6+-purple)](https://claude.ai/code)
 
 [English](README.md) | **简体中文**
 
-精心打造的 21 个 Claude Code 插件集合，提供专业的 Agent、Skills 和自动化工具，服务于开发和生产力工作流。
+精心打造的 22 个 Claude Code 插件集合，提供专业的 Agent、Skills 和自动化工具，服务于开发和生产力工作流。
 
 ## 可用插件
 
@@ -77,11 +77,22 @@ claude plugin install swiftui@frad-dotclaude
 
 ### [office](office/)
 
-专利申请书生成、产品需求文档、图片与视频生成、智能体浏览器自动化、Remotion 编程式视频创作以及 AI 写作俗套检测。
+专利申请书生成、产品需求文档、视频生成、智能体浏览器自动化、Remotion 编程式视频创作以及 AI 写作俗套检测。
 
 **安装：**
 ```bash
 claude plugin install office@frad-dotclaude
+```
+
+---
+
+### [generate-image](generate-image/)
+
+通过两个后端生成或编辑图片：Google Gemini（`gemini-3-pro-image`）或任意 OpenAI 兼容端点（`gpt-image-2`、`dall-e-3`）。
+
+**安装：**
+```bash
+claude plugin install generate-image@frad-dotclaude
 ```
 
 ---

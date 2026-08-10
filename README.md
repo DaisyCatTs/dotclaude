@@ -1,11 +1,11 @@
-# Frad's Claude Code Plugins ![](https://img.shields.io/badge/plugins-21-blue)
+# Frad's Claude Code Plugins ![](https://img.shields.io/badge/plugins-22-blue)
 
 [![MIT License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 [![Claude Code](https://img.shields.io/badge/Claude%20Code-v0.6+-purple)](https://claude.ai/code)
 
 **English** | [简体中文](README.zh-CN.md)
 
-A curated collection of 21 plugins for Claude Code, providing specialized agents, skills, and automation tools for development and productivity workflows.
+A curated collection of 22 plugins for Claude Code, providing specialized agents, skills, and automation tools for development and productivity workflows.
 
 ## Available Plugins
 
@@ -77,11 +77,22 @@ claude plugin install swiftui@frad-dotclaude
 
 ### [office](office/)
 
-Patent application generation, Product Requirements Documents, image and video generation, agent-based browser automation, Remotion programmatic video authoring, and AI writing trope detection.
+Patent application generation, Product Requirements Documents, video generation, agent-based browser automation, Remotion programmatic video authoring, and AI writing trope detection.
 
 **Installation:**
 ```bash
 claude plugin install office@frad-dotclaude
+```
+
+---
+
+### [generate-image](generate-image/)
+
+Generate or edit images via two backends: Google Gemini (`gemini-3-pro-image`) or any OpenAI-compatible endpoint (`gpt-image-2`, `dall-e-3`).
+
+**Installation:**
+```bash
+claude plugin install generate-image@frad-dotclaude
 ```
 
 ---

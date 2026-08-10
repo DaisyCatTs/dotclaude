@@ -1,8 +1,8 @@
 # Office Plugin
 
-Office productivity skills for patent applications, PRD generation, image and video generation, Remotion programmatic video authoring, and AI writing trope detection.
+Office productivity skills for patent applications, PRD generation, video generation, Remotion programmatic video authoring, and AI writing trope detection.
 
-**Version**: 0.7.2
+**Version**: 0.7.4
 **Display Name**: Office
 
 ## Installation
@@ -18,7 +18,6 @@ claude plugin install office@frad-dotclaude
 ```bash
 export SERPAPI_KEY="your_serpapi_key"   # patent-architect
 export EXA_API_KEY="your_exa_api_key"    # patent-architect
-export GEMINI_API_KEY="your_gemini_key"  # generate-image
 export ARK_API_KEY="your_ark_key"        # generate-video
 # Add to ~/.zshrc or ~/.bashrc for persistence
 source ~/.zshrc
@@ -27,7 +26,6 @@ source ~/.zshrc
 Get your API keys:
 - **SERPAPI_KEY**: Sign up at [serpapi.com](https://serpapi.com)
 - **EXA_API_KEY**: Get from [dashboard.exa.ai](https://dashboard.exa.ai)
-- **GEMINI_API_KEY**: Get from [aistudio.google.com/app/apikey](https://aistudio.google.com/app/apikey)
 - **ARK_API_KEY**: Get from [console.volcengine.com/ark](https://console.volcengine.com/ark)
 
 Each generation skill resolves its key progressively — a shell `export`, a `.env` file, or a
@@ -85,24 +83,6 @@ Generate comprehensive Chinese Product Requirements Documents (PRD) following 20
 
 **Prerequisites:**
 - None (interactive workflow)
-
-### `/office:generate-image` (Command)
-
-Generate or edit images from a text prompt via one of two backends — Google Gemini (`gemini-3-pro-image`) or any OpenAI-compatible endpoint (`gpt-image-2`, `dall-e-3`, ...).
-
-**Usage:**
-```bash
-/office:generate-image "RayNeo AR glasses product hero shot" --backend gemini -o hero.png --aspect-ratio 16:9 --size 2K
-/office:generate-image "swap the sky to a sunset, keep everything else" --backend gemini -i street.png -o street_sunset.png
-```
-
-**Features:**
-- Two explicit backends (`--backend gemini|openai`) — native Gemini API or any OpenAI-compatible endpoint
-- Text-to-image and image editing/composition (one or more `-i` reference images)
-- Aspect ratio (`1:1` … `21:9`), resolution tier (`1K`/`2K`/`4K`), multiple candidates
-- Progressive configuration — key/model resolved via flag → env → `.env` → default
-
-**Prerequisites:** `uv`, and the API key for the chosen backend — `GEMINI_API_KEY` ([aistudio.google.com/app/apikey](https://aistudio.google.com/app/apikey)) or `OPENAI_API_KEY`.
 
 ### `/office:generate-video` (Command)
 
@@ -179,10 +159,6 @@ office/
     │   └── examples.md
     ├── create-prd/            # PRD generation (command)
     │   └── SKILL.md
-    ├── generate-image/        # Image generation (command, gemini / openai backends)
-    │   ├── SKILL.md
-    │   ├── scripts/generate_image.py
-    │   └── references/prompting.md
     ├── generate-video/        # Video generation (command, Seedance / Ark)
     │   ├── SKILL.md
     │   ├── scripts/generate_video.py
