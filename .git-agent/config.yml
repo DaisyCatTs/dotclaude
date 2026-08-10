@@ -4,9 +4,9 @@ scopes:
     - name: ag
       description: Antigravity plugin, delegate-based research agents, and workflows in antigravity/; does not cover acpx.
     - name: as
-      description: Autonomous ML experimentation, gan tournaments, and model training in autoresearch/; does not cover superpowers.
+      description: Autonomous ML experimentation, GAN tournaments, and model training in autoresearch/; does not cover superpowers.
     - name: cctx
-      description: Code context research, codebase-wide dependency tracking, and mcp integration in code-context/.
+      description: Code context research, codebase-wide dependency tracking, and MCP integration in code-context/.
     - name: git
       description: Git hooks, commit hygiene, and changelog generation in git/; does not cover github/.
     - name: gh
@@ -15,15 +15,15 @@ scopes:
       description: Hardware engineering CLI tooling for KiCad and OpenSCAD in hardware/.
     - name: hf
       description: HyperFrames video authoring, captioning, and animation engines in hyperframes/; does not cover marketing/.
+    - name: lark
+      description: Lark office suite automation including approvals, docs, sheets, and calendar in office/lark/.
     - name: mkt
       description: Marketing automation, SEO, attribution, and analytics in marketing/; does not cover hyperframes/.
     - name: mem
       description: Memory storage layers, state consolidation, and recall systems in memory/.
-    - name: "off"
-      description: Lark integrations, office productivity, and remotion video workflows in office/.
     - name: po
       description: Plugin optimization, validation framework, and structural metadata integrity in plugin-optimizer/.
     - name: ref
       description: Code simplification agents, refactoring logic, and architectural redesign tools in refactor/.
-    - name: sp
-      description: Autonomous planning, evaluation harness, task orchestration, and BDD testing in superpowers/.
+    - name: sd
+      description: Superdev engineering plugin, BDD, TDD, and productivity tools in superdev/.

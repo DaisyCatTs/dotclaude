@@ -1,8 +1,15 @@
 # Memory Plugin
 
-Consolidates a Claude Code project's memory as one unlayered store — the private harness memory at `~/.claude/projects/<escaped-cwd>/memory/` and the repo-local `docs/memory/`. Auto-consolidates on Stop with a 24h per-project debounce, plus a single manual skill for the full pass.
+Active memory writing during conversation, plus manual `/memory:consolidate` for tidying up. No auto-consolidation.
 
-**Version**: 0.1.1
+Two locations must stay **identical** (idempotent):
+
+1. **`~/.claude/projects/<escaped-cwd>/memory/`** — harness, loaded by Claude Code, written first
+2. **`.memory/`** — canonical, git-tracked, written second
+
+**Privacy:** `.memory/` is part of a public GitHub repo. Technical content only; user preferences, credentials, and personal information stay in harness memory only.
+
+**Version**: 0.1.3
 
 ## Installation
 
@@ -10,34 +17,17 @@ Consolidates a Claude Code project's memory as one unlayered store — the priva
 claude plugin install memory@frad-dotclaude
 ```
 
-## Overview
-
-A project's memory lives in two physical locations but is one unlayered store. There is no public/private, no tier, no sync — the AI decides what needs consolidating, deduplicating, merging, or pruning, and where each fact belongs.
-
-- **Private harness memory** — `~/.claude/projects/<escaped-cwd>/memory/`, loaded as session memory. Indexed by `MEMORY.md`.
-- **Repo memory** — `docs/memory/` in the project's git root, git-tracked. Indexed as rows in `docs/README.md`, consumed by `reflect-skills-from-memory`.
-
-**Everything is AI-processed**: all consolidation decisions live in the skill instructions; the plugin carries almost no code.
-
 ## How it works
 
-- **Slash command** `/memory:consolidate` — no arguments. Consolidates both memory locations.
-- **Stop hook** `hooks/consolidate-stop.sh` — a launcher only: resolves the session cwd, debounces per project (24h), and backgrounds a headless `claude -p` that reads the same SKILL.md and runs the full pass over both locations. The hook contains no memory logic.
-
-The only rule beyond "let the AI decide" is that repo memory must never carry secrets — a leaked credential is irreversible — so files whose name/body signals a secret are left as-is.
-
-## Skill
-
-### `/memory:consolidate`
-
-No arguments. Reads, normalizes, deduplicates, prunes, and rebuilds the index across both locations. The AI decides where merged facts belong and which to keep.
+- **Active writing**: when the model encounters a decision, preference, or lesson worth remembering, it writes to harness memory then mirrors to `.memory/` immediately — no hook needed.
+- **Slash command** `/memory:consolidate` — user-invoked only. Normalizes, deduplicates, prunes, and rebuilds the index in harness, then syncs safe files to `.memory/`.
 
 ## Files
 
 ```
 memory/
-├── .claude-plugin/plugin.json   # Stop hook + consolidate command
-├── hooks/consolidate-stop.sh    # launcher only: cwd → debounce → background claude -p (full pass)
-├── skills/consolidate/SKILL.md  # all memory logic, as AI instructions (single source of truth)
+├── .claude-plugin/plugin.json   # commands only (no hooks)
+├── skills/consolidate/SKILL.md  # all memory logic (active write + consolidate instructions)
 └── README.md
+.memory/                         # canonical git-tracked memory data
 ```

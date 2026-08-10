@@ -1,0 +1,30 @@
+# dotclaude 项目记忆
+
+- [feedback_verification.md](feedback_verification.md) — 报告前必须验证产物；行为偏好，不再有 hook 强制
+- [feedback_claude_code_guide.md](feedback_claude_code_guide.md) — 插件改动前先用 claude-code-guide agent 核对当前 API
+- [feedback_skill_invocation_bypass.md](feedback_skill_invocation_bypass.md) — superpowers 改为用户手动调用、模型无法调用；SessionStart hook + dispatcher 已删除
+- [feedback_git_commit_hook_needed.md](feedback_git_commit_hook_needed.md) — git PreToolUse hook 拦 git add/commit，重定向 /git:commit；放行链式 + GIT_SKILL_FALLBACK=1 逃生标记
+- [feedback_skill_level_enforcement.md](feedback_skill_level_enforcement.md) — L2 SKILL.md 必须有 CRITICAL 标记；新增 internal skill 的加载指令必须同时落 L2
+- [feedback_self_audit_caught_my_bugs.md](feedback_self_audit_caught_my_bugs.md) — 自审抓 bug：守卫必测 should-fail；case glob 别写裸 *|*；计数器别放管道子 shell；bash 双引号 \n 字面化；断链扫描
+- [feedback_null_alternative_first.md](feedback_null_alternative_first.md) — 加新交付面前必先论证 null alternative（现有 references 文件 + 平台原生能力）；结构 checklist PASS ≠ 形态正确
+- [feedback_verify_problem_real.md](feedback_verify_problem_real.md) — 遇到问题先验证真实性：简单直接判，复杂起独立 subagent（stale 状态假警报教训）
+- [feedback_pi_file_edit_output.md](feedback_pi_file_edit_output.md) — pi 产出是文件编辑不是 stdout；带长 context 时 stdout 为空；不能用 Monitor，用 run_in_background + git diff --stat
+- [project_active_design_work.md](project_active_design_work.md) — eval harness：binary PASS/FAIL checklists（design-v1、plan-v1、code-v1）
+- [project_superpowers_hooks.md](project_superpowers_hooks.md) — superpowers 架构：Stop hook 状态回填；用户手动调用；lib 层 8 文件，skills 8 个；与 mattpocock 并存
+- [project_superpowers_upstream_lessons.md](project_superpowers_upstream_lessons.md) — 上游 obra/superpowers 设计约束（model 声明/禁 suppression/产物不写 .git/）及 8 条 Tier 1-2 候选落地
+- [project_mattpocock_fork.md](project_mattpocock_fork.md) — mattpocock = mattpocock/skills 全量 fork + BDD(替代tdd) + BDD-driven tdd(Automation) + 自改进重实现；同步规则、交叉引用规则、决策记录
+- [project_agentbook_commons_bridge.md](project_agentbook_commons_bridge.md) — commons-bridge 设计已 PASS 但无 plan 无代码；要点存 docs/orphaned-designs.md；重启时改走 mattpocock 流程
+- [project_autoresearch_plugin.md](project_autoresearch_plugin.md) — autoresearch：ralph-loop Stop hook + 混合引擎(顺序→tournament) + worktree 隔离 + 临时提交模型
+- [project_gitflow_plugin.md](project_gitflow_plugin.md) — gitflow 建在 git-flow-next（非经典 git-flow）；finish 停 main/不自动 push；CRITICAL 规则链
+- [project_antigravity_plugin.md](project_antigravity_plugin.md) — antigravity 桥接 Google Gemini Managed Agents；实测 API 事实与已知 HIGH 缺陷清单
+- [project_hardware_plugin.md](project_hardware_plugin.md) — hardware 通用 EDA 伞形插件：use-kicad-cli(KiCad 9.0) + use-openscad；CRITICAL 规则经独立 agent 核验
+- [project_reviewpr_closeout.md](project_reviewpr_closeout.md) — review-pr 五阶段：Phase 3 hide+resolve(GraphQL)、Phase 5 总结评论+重写 PR title/body、Stop hook 每用户回合只拦一次强制 merge ask；真链接指针；残留拦截先验证真实
+- [project_reviewpr_pr22_cycle.md](project_reviewpr_pr22_cycle.md) — review-fix 循环教训：bash arg-parse 必测 4 路、--paginate 对称加、macOS bash 3.2 无关联数组
+- [project_lark_skills_sync.md](project_lark_skills_sync.md) — lark/skills 是 larksuite/cli 镜像（lark/scripts/sync-lark.sh + tools/skill-sync）；lark-cli 升级时重同步
+- [project_readme_sync_manual.md](project_readme_sync_manual.md) — 顶层双语 README 必须手动同步（/utils:update-readme 禁模型）；三处编辑点 + marketplace version bump
+- [project_gitagent_scopes.md](project_gitagent_scopes.md) — git-agent scope:init --scope 只扫已提交历史；config.yml(14) 与 CLAUDE.md(21) 已漂移；别用裸 off
+- [reference_anthropic_harness_blog.md](reference_anthropic_harness_blog.md) — Anthropic harness 设计博文：context reset、GAN 评估器、假设测试、simplify-don't-add
+- [reference_git_coauthor_allowlist.md](reference_git_coauthor_allowlist.md) — git-agent co-author 域名 allowlist（非硬编码，可 model_co_author_domains 追加）；本机已加 zhipuai/qwen/deepseek/moonshot；stringslice 是整行覆盖
+- [reference_config_unified_pattern.md](reference_config_unified_pattern.md) — 插件配置统一格式：扁平JSON(baseUrl/model/apiKey)、.env引用、CLI>进程env>.local.json>.json优先级
+- [project_vision_bridge_plugin.md](project_vision_bridge_plugin.md) — vision 已删代理（hook+describe）；粘贴截图用网关视觉模型，代理已否决勿再提议
+- [project_plugin_rename_sync.md](project_plugin_rename_sync.md) — 插件改名后 enabledPlugins key 不自动跟随；hooks.json 顶层必须有 hooks 键（vision 教训）
