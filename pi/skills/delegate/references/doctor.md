@@ -41,7 +41,8 @@ echo -n "4. Connectivity test: "
 AGENT_DIR="${AGENT_DIR:-${PI_CODING_AGENT_DIR:-$HOME/.pi/agent}}"
 if [ -n "$BASE_URL" ]; then
   mkdir -p "$AGENT_DIR"
-  EXISTING=$(cat "$AGENT_DIR/models.json" 2>/dev/null || echo '{}')
+  EXISTING=$(cat "$AGENT_DIR/models.json" 2>/dev/null)
+  EXISTING="${EXISTING:-{}}"   # empty file (exists but 0 bytes) → {} so jq has valid input
   # Register baseUrl AND the model in one idempotent merge (mirrors pi-agent step 5),
   # so a custom model is present and pi stops warning "Model not found".
   echo "$EXISTING" | jq --arg provider "${PROVIDER:-openai}" \

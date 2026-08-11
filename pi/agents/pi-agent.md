@@ -68,7 +68,8 @@ You are the execution layer for the pi plugin. You run the `pi` CLI (`@earendil-
    if [ -n "$BASE_URL" ]; then
      PROVIDER_KEY="${PROVIDER:-openai}"
      mkdir -p "$AGENT_DIR"
-     EXISTING=$(cat "$AGENT_DIR/models.json" 2>/dev/null || echo '{}')
+     EXISTING=$(cat "$AGENT_DIR/models.json" 2>/dev/null)
+     EXISTING="${EXISTING:-{}}"   # empty file (exists but 0 bytes) → {} so jq has valid input
      NEW=$(echo "$EXISTING" | jq -c --arg provider "$PROVIDER_KEY" --arg baseUrl "$BASE_URL" --arg model "$MODEL" \
        '.providers[$provider] = (.providers[$provider] // {}) |
         .providers[$provider].baseUrl = $baseUrl |

@@ -1,7 +1,7 @@
 ---
 name: review-pr
 allowed-tools: Task, Bash(gh:*), Bash(git:*), ExitWorktree, Monitor, PushNotification, TaskStop, Skill, AskUserQuestion, Read, Edit, Write
-description: Reviews a pull request: runs its own baseline review of the PR diff, then a persistent Monitor watches CI and incoming reviewer comments, triages each comment through an independent skeptical agent, applies only verified fixes, and commits+pushes via /git:commit-and-push until CI passes and no comments remain to adopt — then asks whether to merge. Use this skill when the user asks to "review a PR", "monitor PR review comments", "address reviewer feedback on #123", or "watch CI on a pull request".
+description: 'Reviews a pull request: runs its own baseline review of the PR diff, then a persistent Monitor watches CI and incoming reviewer comments, triages each comment through an independent skeptical agent, applies only verified fixes, and commits+pushes via /git:commit-and-push until CI passes and no comments remain to adopt — then asks whether to merge. Use this skill when the user asks to "review a PR", "monitor PR review comments", "address reviewer feedback on #123", or "watch CI on a pull request".'
 argument-hint: <PR number or URL> [--auto-merge]
 user-invocable: true
 ---

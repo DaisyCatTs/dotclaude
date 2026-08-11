@@ -104,7 +104,10 @@ if [ -n "$PROVIDER" ]; then
 elif [ -n "$BASE_URL" ]; then
   CMD+=(--provider "${PROVIDER_KEY:-openai}")
 fi
-CMD+=(--model "$MODEL" --thinking low --no-session --no-context-files --approve "Reply with exactly: OK. Model: <model-name>")
+# Only pass --model when set — an empty --model is silently accepted by pi but the
+# probe then runs without the intended model (setup never resolves MODEL itself).
+[ -n "$MODEL" ] && CMD+=(--model "$MODEL")
+CMD+=(--thinking low --no-session --no-context-files --approve "Reply with exactly: OK. Model: <model-name>")
 # </dev/null: pi -p hangs on a terminal/pipe stdin (mis-detects interactive) — force non-interactive.
 "${CMD[@]}" </dev/null
 ```
@@ -163,7 +166,7 @@ if [[ "$ARGUMENTS" == *"--endpoint"* ]]; then
   ENDPOINT_IS_EXPLICIT="1"
   ENDPOINT="${ENDPOINT:-local-proxy}"
 else
-  ENDPOINT="${ENDPOINT:-$(echo "$EXISTING" | jq -r '.defaultEndpoint // "local-proxy"')}"
+  ENDPOINT="${ENDPOINT:-$(echo "$EXISTING" | jq -r 'if .defaultEndpoint and .defaultEndpoint != "" then .defaultEndpoint else "local-proxy" end')}"
 fi
 
 # Merge into the endpoints map — only override non-empty fields.
@@ -176,7 +179,7 @@ echo "$EXISTING" | jq \
   --arg model "${MODEL:-}" \
   --arg baseUrl "${BASE_URL:-}" \
   --arg apiKey "${API_KEY:-}" \
-  '.endpoints[$e] = (.endpoints[$e] // {provider: $provider}) |
+  '.endpoints[$e] = (.endpoints[$e] // {provider: (if $provider != "" then $provider else "openai" end)}) |
    .endpoints[$e].provider = (if $provider != "" then $provider else .endpoints[$e].provider end) |
    .endpoints[$e].baseUrl = (if $baseUrl != "" then $baseUrl else .endpoints[$e].baseUrl // "" end) |
    .endpoints[$e].apiKey = (if $apiKey != "" then $apiKey else .endpoints[$e].apiKey // "" end) |
@@ -201,7 +204,8 @@ AGENT_DIR="${AGENT_DIR:-${PI_CODING_AGENT_DIR:-$HOME/.pi/agent}}"
 if [ -n "$BASE_URL" ]; then
   PROVIDER_KEY="${PROVIDER:-openai}"
   mkdir -p "$AGENT_DIR"
-  EXISTING=$(cat "$AGENT_DIR/models.json" 2>/dev/null || echo '{}')
+  EXISTING=$(cat "$AGENT_DIR/models.json" 2>/dev/null)
+  EXISTING="${EXISTING:-{}}"   # empty file (exists but 0 bytes) → {} so jq has valid input
   NEW=$(echo "$EXISTING" | jq -c --arg provider "$PROVIDER_KEY" --arg baseUrl "$BASE_URL" --arg model "$MODEL" \
     '.providers[$provider] = (.providers[$provider] // {}) |
      .providers[$provider].baseUrl = $baseUrl |
@@ -224,7 +228,10 @@ if [ -n "$PROVIDER" ]; then
 elif [ -n "$BASE_URL" ]; then
   CMD+=(--provider "${PROVIDER_KEY:-openai}")
 fi
-CMD+=(--model "$MODEL" --thinking low --no-session --no-context-files --approve "Reply with exactly: OK. Model: <model-name>")
+# Only pass --model when set — an empty --model is silently accepted by pi but the
+# probe then runs without the intended model (setup never resolves MODEL itself).
+[ -n "$MODEL" ] && CMD+=(--model "$MODEL")
+CMD+=(--thinking low --no-session --no-context-files --approve "Reply with exactly: OK. Model: <model-name>")
 # Pin the probe to the agent dir we just wrote (matches pi-agent's run pattern).
 # </dev/null: pi -p hangs on a terminal/pipe stdin (mis-detects interactive).
 PI_CODING_AGENT_DIR="$AGENT_DIR" "${CMD[@]}" </dev/null

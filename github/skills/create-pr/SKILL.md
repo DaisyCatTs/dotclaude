@@ -2,7 +2,7 @@
 name: create-pr
 allowed-tools: Task, Bash(gh:*), Bash(git:*), Skill
 description: Creates comprehensive GitHub pull requests with automated quality validation and security scanning, then hands off to /github:review-pr for CI monitoring and reviewer-comment triage. This skill should be used when the user asks to "create a PR", "submit a pull request", or needs to merge completed work with full compliance checks.
-argument-hint: [optional description or issue reference] [--no-monitor] [--auto-merge]
+argument-hint: "[optional description or issue reference] [--no-monitor] [--auto-merge]"
 user-invocable: true
 ---
 
