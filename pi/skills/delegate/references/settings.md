@@ -64,15 +64,21 @@ fi
 # that merely mentions "--endpoint" does not hijack resolution. Accept an endpoint only
 # if it exists in .endpoints.
 FLAGS_REGION=$(echo "$ARGUMENTS" | awk '{ for(i=1;i<=NF;i++) if($i ~ /^--/) { for(j=i;j<=NF;j++) printf "%s%s", $j, (j<NF?" ":""); break } }')
+# Independent blocks so --endpoint and --model combine. When both are given, --endpoint
+# is authoritative for the endpoint and --model picks the model; the model scan only
+# re-routes the endpoint when no explicit --endpoint was supplied.
 if echo "$FLAGS_REGION" | grep -q -- '--endpoint'; then
   CLI_EP=$(echo "$FLAGS_REGION" | sed -n 's/.*--endpoint[= ]\([^ ]*\).*/\1/p' | head -1)
   EP_EXISTS=$(echo "$CONFIG" | jq -r --arg e "$CLI_EP" '.endpoints | has($e)')
   [ "$EP_EXISTS" = "true" ] && ENDPOINT=$(resolve_env "$CLI_EP")
-elif echo "$FLAGS_REGION" | grep -q -- '--model'; then
+fi
+if echo "$FLAGS_REGION" | grep -q -- '--model'; then
   CLI_MODEL=$(echo "$FLAGS_REGION" | sed -n 's/.*--model[= ]\([^ ]*\).*/\1/p' | head -1)
   if [ -n "$CLI_MODEL" ]; then
     EP_MATCH=$(echo "$CONFIG" | jq -r --arg m "$CLI_MODEL" '(.endpoints | to_entries | map(select((.value.models // []) | index($m))) | .[0].key // "")')
-    [ -n "$EP_MATCH" ] && ENDPOINT=$(resolve_env "$EP_MATCH")
+    if [ -z "$CLI_EP" ] && [ -n "$EP_MATCH" ]; then
+      ENDPOINT=$(resolve_env "$EP_MATCH")
+    fi
   fi
 fi
 # CLI --api-key: a key the user typed explicitly overrides the config-file key.
