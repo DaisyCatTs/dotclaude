@@ -3,7 +3,7 @@ name: review
 description: Reviews code using pi CLI with read-only tools. Delegates the review to pi (dev/pi) with a structured review rubric, running in read-only mode to prevent accidental edits. By default reviews uncommitted working tree changes (git diff HEAD) with pi restricted to the read tool; explicit targets (--branch/--diff/@file/PR) or --explore widen pi to read,grep,find,ls. Use when the user asks to "review code with pi", "pi review", "have pi review", "let pi review", or invokes /pi:review.
 user-invocable: true
 argument-hint: "[@target] [--branch BRANCH] [--diff RANGE] [--endpoint ENDPOINT] [--model MODEL] [--thinking LEVEL] [--explore] | --edit-config [--local|--shared|--global] | --list-models"
-allowed-tools: ["Task", "Bash(git:*)", "Bash(jq:*)", "Bash(ls:*)", "Bash(find:*)", "Bash(cat:*)", "Bash(mkdir:*)", "Bash(echo:*)", "Bash(command:*)", "Bash(mktemp:*)", "Bash(rm:*)", "Bash(mv:*)", "Bash(sed:*)", "Bash(grep:*)", "Bash(head:*)", "Bash(awk:*)", "Bash(tr:*)", "Bash(gh:*)", "Bash(bash:*)", "Bash(vi:*)", "Read", "Grep", "Glob"]
+allowed-tools: ["Task", "Bash(git:*)", "Bash(jq:*)", "Bash(ls:*)", "Bash(find:*)", "Bash(cat:*)", "Bash(mkdir:*)", "Bash(echo:*)", "Bash(command -v:*)", "Bash(mktemp:*)", "Bash(rm:*)", "Bash(mv:*)", "Bash(sed:*)", "Bash(grep:*)", "Bash(head:*)", "Bash(awk:*)", "Bash(tr:*)", "Bash(gh:*)", "Bash(bash:*)", "Bash(vi:*)", "Read", "Grep", "Glob"]
 ---
 # CRITICAL: pi Code Review
 

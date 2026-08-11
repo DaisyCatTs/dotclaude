@@ -2,8 +2,9 @@
 name: setup
 description: Guides the user through configuring pi — provider, model, base URL, and API key. Use when the user asks to "setup pi", "configure pi", "pi setup", "set up pi provider", "pi config", "change pi model", or invokes /pi:setup. Only run this skill when the user explicitly requests pi setup — never auto-invoke.
 user-invocable: true
+disable-model-invocation: true
 argument-hint: "[--endpoint NAME] [--provider PROVIDER] [--model MODEL] [--base-url URL] [--api-key KEY] | --edit-config | --list-models | --test | --doctor"
-allowed-tools: ["Bash(pi:*)", "Bash(jq:*)", "Bash(cat:*)", "Bash(mkdir:*)", "Bash(mv:*)", "Bash(echo:*)", "Bash(command:*)", "Bash(ls:*)", "Bash(vi:*)", "Read", "Write"]
+allowed-tools: ["Bash(pi:*)", "Bash(jq:*)", "Bash(cat:*)", "Bash(mkdir:*)", "Bash(mv:*)", "Bash(echo:*)", "Bash(command -v:*)", "Bash(ls:*)", "Bash(vi:*)", "Read", "Write"]
 ---
 
 # CRITICAL: User setup only — do not auto-invoke

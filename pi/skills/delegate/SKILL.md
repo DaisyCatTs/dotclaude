@@ -3,12 +3,26 @@ name: delegate
 description: Delegates a coding task to pi (dev/pi), a minimal terminal coding harness. This skill should be used when the user asks to "use pi", "run pi", "delegate to pi", "let pi handle this", "ask pi to", "have pi do", or invokes /pi:delegate. It bridges the current Claude Code context to the pi CLI, passing relevant files, git state, and the task description for execution by the pi-agent.
 user-invocable: true
 argument-hint: "<task description> [--endpoint ENDPOINT] [--provider PROVIDER] [--model MODEL] [--api-key KEY] [--thinking LEVEL] [--tools TOOL_LIST] [--exclude-tools TOOL_LIST] [--no-git] | --edit-config [--local|--shared|--global] | --list-models | --doctor"
-allowed-tools: ["Task", "Bash(git:*)", "Bash(jq:*)", "Bash(ls:*)", "Bash(find:*)", "Bash(cat:*)", "Bash(mkdir:*)", "Bash(mv:*)", "Bash(echo:*)", "Bash(command:*)", "Bash(grep:*)", "Bash(head:*)", "Bash(vi:*)", "Read", "Grep", "Glob"]
+allowed-tools: ["Task", "Bash(git:*)", "Bash(jq:*)", "Bash(ls:*)", "Bash(find:*)", "Bash(cat:*)", "Bash(mkdir:*)", "Bash(mv:*)", "Bash(echo:*)", "Bash(command -v:*)", "Bash(grep:*)", "Bash(head:*)", "Bash(vi:*)", "Read", "Grep", "Glob"]
+disallowed-tools: ["Bash(pi:*)"]
 ---
 
 # CRITICAL: pi CLI Integration
 
 This skill delegates a task to the `pi` CLI tool (`@earendil-works/pi-coding-agent`) via the dedicated `pi:pi-agent` execution layer. Config is read endpoint-first (same format as `/pi:review`); legacy flat fields remain as a fallback.
+
+# CRITICAL: No Bypass — pi MUST Run
+
+Execute every task through `pi:pi-agent` — never answer the task yourself. NEVER:
+
+- judge a task "too simple", "not worth pi", "just a question", or "already satisfied" and answer it yourself;
+- perform the task's edits yourself instead of delegating;
+- stop after resolving settings without launching `pi:pi-agent`;
+- fall back to running `pi` directly if `pi:pi-agent` fails to start or hangs — report the failure and stop.
+
+Even a trivial-looking task still launches pi-agent — the delegation contract IS the point. Valid early exits are only: pi not installed (blocked below), and the settings-only flags `--edit-config` / `--list-models` (which stop by design). `--doctor` still runs pi, via `pi:pi-agent`.
+
+**Mechanical enforcement:** `disallowed-tools: ["Bash(pi:*)"]` hard-removes direct `pi` invocations from this skill's turn, so running pi yourself is impossible — not just discouraged. If you ever catch yourself reaching for `pi` outside `pi:pi-agent`, you have violated the contract: stop and launch `pi:pi-agent` instead.
 
 ## Before Execution: Check Installation
 
@@ -222,7 +236,7 @@ pi does not support a `--base-url` CLI flag. Custom endpoints are configured thr
 
 ### On Success (exit code 0)
 
-The pi-agent reports the changed files. Present those changes to the user and describe what pi modified (additions, deletions, file count). If git shows no changes and exit was 0, the task was understood but resulted in no modifications (read-only analysis, conceptual questions, or the task was already satisfied).
+The pi-agent reports the changed files. Present those changes to the user and describe what pi modified (additions, deletions, file count). If git shows no changes and exit was 0, the task was understood but resulted in no modifications — pi ran, but produced no file edits (e.g. read-only analysis or conceptual questions).
 
 ### On Error (exit code 1+)
 
@@ -230,6 +244,10 @@ Show the error message from the pi-agent's report. Common error causes:
 - pi not configured (no API key)
 - Provider/model not available
 - Task interrupted or killed
+
+### On Hang / No Response
+
+If `pi:pi-agent` produces no result within a reasonable wait, or its status is unclear, **report the stalled state and stop — never fall back to running `pi` directly.** The delegation contract is enforced by `disallowed-tools`; a bypass attempt would not work anyway and would lose the config-resolution chain (provider/baseUrl/models.json), which is the usual cause of a 401.
 
 ## Usage Examples
 
