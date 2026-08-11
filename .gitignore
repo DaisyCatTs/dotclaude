@@ -307,3 +307,10 @@ Thumbs.db
 
 # Plugin local settings (user-specific, not shared)
 **/.claude/*.local.*
+
+# git-agent generated files (never track)
+.git-agent/graph.db
+*.db-shm
+*.db-wal
+*.db-journal
+.git-agent/config.local.yml
