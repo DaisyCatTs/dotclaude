@@ -1,32 +1,34 @@
 ---
 name: commit
-description: Creates a conventional git commit using git-agent. This skill should be used when the user requests "commit", "git commit", "create commit", or wants to commit staged and unstaged changes following the conventional commits format. The executing AI auto-derives its own co-author string from its runtime model identity (e.g., `Claude Opus 4.7 <noreply@anthropic.com>`, `Grok 4.5 <noreply@x.ai>`, `GLM-4.5 <noreply@zhipuai.cn>`) and passes it to `--co-author`. `$ARGUMENTS`, if provided, overrides the auto-derived value.
+description: Creates clean, conventional git commits using standard git. Use when the user asks to "commit", "git commit", "create commit", or wants to commit staged or unstaged changes.
 user-invocable: true
-argument-hint: <co-author>
-allowed-tools: ["Bash(git-agent:*)", "Bash(git:*)"]
+argument-hint: "[optional commit message or instructions]"
+allowed-tools: ["bash"]
 ---
 
-CRITICAL:
-- Do NOT run `git status`, `git diff`, `git log`, or any other commands before `git-agent commit`.
-- Always pass `--co-author` to `git-agent commit`. If `$ARGUMENTS` is non-empty, use it verbatim. Otherwise self-derive from your own runtime model identity: take the model identifier from your own system prompt, map it to a provider domain via the table below, normalize the variant (see step 2), and build `<Display Name> <noreply@<domain>>`. Never run a commit without `--co-author`.
+# Commit Skill (Standard Git)
 
-1. Derive a one-sentence intent from the conversation.
-2. Resolve `<co-author>`: if `$ARGUMENTS` is non-empty use it verbatim; otherwise pick the row below whose model-prefix matches the model named in your own system prompt, normalize the variant — strip `[...]` context annotations (e.g. `[1m]`), replace `-`/`_` with spaces, join consecutive digit tokens with `.`, title-case each word (e.g. `deepseek-v4-flash[1m]` → `DeepSeek V4 Flash`) — and build `<Display Name> <noreply@<domain>>` (e.g. `Claude Opus 4.7 <noreply@anthropic.com>`, `Grok 4.5 <noreply@x.ai>`, `GLM-4.5 <noreply@zhipuai.cn>`).
+Create clean, atomic Conventional Commits using standard `git` commands.
 
-   | Model prefix | Display Name | noreply domain |
-   |---|---|---|
-   | `claude-` / `Claude` (Fable/Opus/Sonnet/Haiku) | Claude <variant> | anthropic.com |
-   | `gpt-` / `o1-` / `o3-` / `openai` | GPT <variant> | openai.com |
-   | `gemini-` / `Gemini` | Gemini <variant> | google.com |
-   | `grok` / `Grok` / `xai` / `xAI` | Grok <variant> | x.ai |
-   | `glm-` / `GLM` / `chatglm` | GLM <variant> | zhipuai.cn |
-   | `qwen` | Qwen <variant> | qwen.ai |
-   | `deepseek` | DeepSeek <variant> | deepseek.com |
-   | `moonshot` / `kimi` | Kimi <variant> | moonshot.ai |
+## Workflow
 
-   If the model name matches no row, default to `Claude <model-identifier> <noreply@anthropic.com>` (the host that runs this marketplace), using the raw model identifier as the display name, and proceed — do not block the commit on attribution ambiguity.
-3. Run: `git-agent commit --intent "<intent>" --co-author "<co-author>"`
-4. On auth error (401), retry the same command with `--free` appended; keep the `--co-author` flag.
-5. Fallback (binary unavailable): manual `git commit` with Conventional Commits format via HEREDOC, including a `Co-Authored-By: <co-author>` trailer in the message body. Prefix the command with the `GIT_SKILL_FALLBACK=1` marker (e.g. `GIT_SKILL_FALLBACK=1 git add -A && git commit -m "$(cat <<'EOF' ...)"`) — the plugin's PreToolUse hook denies raw `git add`/`git commit` without it.
-
-CLI reference: `${CLAUDE_PLUGIN_ROOT}/references/cli.md`
+1. **Inspect status and diff**:
+   ```bash
+   git status --porcelain
+   git diff --staged
+   git diff
+   ```
+2. **Stage files**:
+   Stage relevant modified or untracked files explicitly:
+   ```bash
+   git add <file1> <file2> ...
+   ```
+3. **Formulate Conventional Commit Message**:
+   Follow the specification: `<type>(<optional scope>): <short description>`
+   Types: `feat`, `fix`, `docs`, `style`, `refactor`, `perf`, `test`, `build`, `ci`, `chore`.
+4. **Commit**:
+   Execute standard `git commit`:
+   ```bash
+   git commit -m "<type>(<scope>): <summary>"
+   ```
+   If a co-author trailer is required or requested, follow `../../references/coauthor-attribution.md`.
