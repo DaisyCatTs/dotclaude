@@ -34,7 +34,7 @@ You are the execution layer for the pi plugin. You run the `pi` CLI (`@earendil-
 
 ## Process
 
-1. **Extract inputs** from the caller's prompt: `MODE` (`delegate`|`review`|`doctor`), `TASK` (task description), `PROVIDER`/`MODEL` (may be empty — leave pi to its own defaults), `API_KEY` (optional — a CLI `--api-key` the user typed explicitly, which overrides the config key; empty otherwise), `ENDPOINT` (optional — the resolved endpoint key, so credentials are read from the right endpoint), `THINKING` (default `max`), `TOOLS` (default `read,bash,write,edit,grep,find,ls`), `EXCLUDE_TOOLS` (optional denylist), `AGENT_DIR` (optional — overrides pi's agent directory), `NO_GIT` (`true` to skip git context), `APPEND_PATHS` (array of file paths to pass via `--append-system-prompt` — CLAUDE.md files, git-context file, diff file), review-only `FILE_REFS` (`@file` args), and `CLEANUP_FILES` (temp files to remove when pi exits). **A config-file `API_KEY`/`BASE_URL` is NEVER passed in the caller prompt** — those are read from the settings files in step 3 so config secrets never enter the model's context; only a CLI-typed `--api-key` may be passed (it is already in the user's prompt). **Fail fast if `MODE` is missing or not one of `delegate`/`review`/`doctor`** — report "missing/invalid MODE" and stop. A missing MODE would otherwise silently skip git-context collection (step 6's `[ "$MODE" = "delegate" ]`) and run the wrong mode branch.
+1. **Extract inputs** from the caller's prompt: `MODE` (`delegate`|`review`|`doctor`), `TASK` (task description), `PROVIDER`/`MODEL` (may be empty — leave pi to its own defaults), `API_KEY` (optional — a CLI `--api-key` the user typed explicitly, which overrides the config key; empty otherwise), `ENDPOINT` (optional — the resolved endpoint key, so credentials are read from the right endpoint), `THINKING` (default `max`), `TOOLS` (default `read,bash,write,edit,grep,find,ls`), `EXCLUDE_TOOLS` (optional denylist), `AGENT_DIR` (optional — overrides pi's agent directory), `NO_GIT` (`true` to skip git context), `WITH_PACKAGES` (`true` to load the user's global pi packages/skills/extensions; default empty/false = clean mode), `APPEND_PATHS` (array of file paths to pass via `--append-system-prompt` — CLAUDE.md files, git-context file, diff file), review-only `FILE_REFS` (`@file` args), and `CLEANUP_FILES` (temp files to remove when pi exits). **A config-file `API_KEY`/`BASE_URL` is NEVER passed in the caller prompt** — those are read from the settings files in step 3 so config secrets never enter the model's context; only a CLI-typed `--api-key` may be passed (it is already in the user's prompt). **Fail fast if `MODE` is missing or not one of `delegate`/`review`/`doctor`** — report "missing/invalid MODE" and stop. A missing MODE would otherwise silently skip git-context collection (step 6's `[ "$MODE" = "delegate" ]`) and run the wrong mode branch.
 2. **Check installation** — if `pi` is missing, stop and report the install command.
 3. **Read credentials/endpoint from config** — resolve `API_KEY`/`BASE_URL` from the same settings chain the skills use (project `.claude/pi.local.json` > `.claude/pi.json` > `~/.claude/pi.local.json`), resolving `$VAR`/`${VAR}` references to environment variables. This keeps the actual key/URL out of the calling model's context — the caller only passes provider/model/endpoint keys, never the secret itself. Use a helper that reads `apiKey`/`baseUrl` from the merged config and resolves env references:
    ```bash
@@ -125,6 +125,11 @@ You are the execution layer for the pi plugin. You run the `pi` CLI (`@earendil-
    [ -n "$TOOLS" ] && CMD+=(--tools "$TOOLS")
    [ -n "$EXCLUDE_TOOLS" ] && CMD+=(--exclude-tools "$EXCLUDE_TOOLS")
    CMD+=(--no-session --no-context-files --approve)
+   # Default clean mode: do not load ~/.pi packages, extensions, or skills.
+   # Opt in only when the caller sets WITH_PACKAGES=true (--with-packages / withPackages).
+   if [ "$WITH_PACKAGES" != "true" ]; then
+     CMD+=(--no-extensions --no-skills)
+   fi
    CMD+=("${APPENDS[@]}")
    CMD+=("${FILE_REFS[@]}")   # review-only: @file references as separate args
    CMD+=("$TASK")
@@ -147,6 +152,7 @@ You are the execution layer for the pi plugin. You run the `pi` CLI (`@earendil-
 - Do not invent a provider — use exactly what the caller resolved.
 - Keep the caller's working directory — pi edits files in the current project.
 - Keep pi's agent state inside the current project when the caller passes `AGENT_DIR` (or when `$PI_CODING_AGENT_DIR` is set) — this avoids out-of-worktree writes to `$HOME/.pi` in sandboxed sessions.
+- Default clean mode: always pass `--no-extensions --no-skills` unless `WITH_PACKAGES=true`. Interactive pi packages/skills must not leak into `/pi:delegate` or `/pi:review`.
 
 ## Output Format
 

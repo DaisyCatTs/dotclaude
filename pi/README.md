@@ -16,7 +16,7 @@ Bridges [pi](https://github.com/earendil-works/pi) (dev/pi), a minimal terminal 
 ### `/pi:delegate` — Delegate a task to pi
 
 ```
-/pi:delegate <task description> [--endpoint ENDPOINT] [--provider PROVIDER] [--model MODEL] [--api-key KEY] [--thinking LEVEL] [--tools TOOL_LIST] [--exclude-tools TOOL_LIST] [--no-git]
+/pi:delegate <task description> [--endpoint ENDPOINT] [--provider PROVIDER] [--model MODEL] [--api-key KEY] [--thinking LEVEL] [--tools TOOL_LIST] [--exclude-tools TOOL_LIST] [--no-git] [--with-packages]
 ```
 
 **Examples:**
@@ -44,7 +44,7 @@ Project personal overrides project shared, which overrides global personal. CLI 
 Read-only code review via pi CLI. By default reviews uncommitted working-tree changes (`git diff HEAD`) with pi restricted to `--tools read` (it cannot explore the repo); explicit targets (`--branch`, `--diff`, `@file`, PR) or `--explore` widen it to `read,grep,find,ls`.
 
 ```
-/pi:review [@target] [--branch BRANCH] [--diff RANGE] [--endpoint ENDPOINT] [--model MODEL] [--thinking LEVEL] | --edit-config [--local|--shared|--global] | --list-models
+/pi:review [@target] [--branch BRANCH] [--diff RANGE] [--endpoint ENDPOINT] [--model MODEL] [--thinking LEVEL] [--with-packages] | --edit-config [--local|--shared|--global] | --list-models
 ```
 
 **Examples:**
@@ -112,6 +112,7 @@ Both `/pi:delegate` and `/pi:review` delegate execution to the dedicated `pi:pi-
 | `--tools` | Comma-separated allowed tools list | CLI > settings > `read,bash,write,edit,grep,find,ls` |
 | `--exclude-tools` | Comma-separated blocked tools list | CLI > settings > (none) |
 | `--no-git` | Skip collecting git context | CLI > settings > `false` |
+| `--with-packages` | Load global pi packages/skills/extensions (default clean mode: off) | CLI > settings `withPackages` > `false` |
 
 ## Persistent Settings
 
@@ -138,11 +139,12 @@ Both skills share the same settings files **and the same named-endpoint format**
   },
   "defaultEndpoint": "local-proxy",
   "defaultModel": "gemini-3.6-flash-high",
-  "thinking": "max"
+  "thinking": "max",
+  "withPackages": false
 }
 ```
 
-Each endpoint has `provider` (required), optional `baseUrl`/`apiKey`, and a `models` array. Both `/pi:delegate` and `/pi:review` resolve the active endpoint via `defaultEndpoint` (or a `--endpoint`/`--model` CLI flag), falling back to the first `models` entry when `defaultModel` is unset.
+Each endpoint has `provider` (required), optional `baseUrl`/`apiKey`, and a `models` array. `withPackages` defaults to false (clean mode); set it to `true` only when bridge tasks should load your interactive pi packages/skills. Both `/pi:delegate` and `/pi:review` resolve the active endpoint via `defaultEndpoint` (or a `--endpoint`/`--model` CLI flag), falling back to the first `models` entry when `defaultModel` is unset.
 
 Values can reference environment variables using `$VAR` or `${VAR}` syntax — they are resolved at read time. This is useful for API keys: `"apiKey": "$MY_API_KEY"` reads from the environment variable at runtime.
 
@@ -155,4 +157,4 @@ Legacy flat fields (`provider`/`model`/`baseUrl`/`apiKey`) are still honored by 
 - **Unified config**: Both commands share the same named-endpoint settings format and the same settings chain.
 - **Context-aware**: The skill collects file and git context from the current project.
 - **Non-interactive**: All pi tasks run in `-p` (print) mode for clean, text-based output.
-- **Isolated**: Uses `--no-session --no-context-files --approve` to avoid conflicts with the current project's state.
+- **Isolated (default clean mode)**: Uses `--no-session --no-context-files --approve --no-extensions --no-skills` so interactive pi packages, extensions, and skills under `~/.pi` do not load. Pass `--with-packages` or set `"withPackages": true` to opt in.

@@ -33,6 +33,7 @@ echo "   Model: ${MODEL:-pi default}"
 echo "   Base URL: ${BASE_URL:-not set}"
 echo "   API Key: ${API_KEY:+set (${#API_KEY} chars)}"
 echo "   Thinking: ${THINKING:-max}"
+echo "   With packages: ${WITH_PACKAGES:-false} (default clean mode disables ~/.pi packages/skills)"
 
 # 4. Test connectivity
 echo ""
@@ -64,6 +65,10 @@ fi
 # otherwise omit --provider/--model so pi uses its own defaults when they are unset.
 PROBE_PROVIDER="${PROVIDER:-${BASE_URL:+openai}}"
 PROBE_CMD=(pi -p --thinking low --no-session --no-context-files --approve)
+# Match bridge clean mode so a broken ~/.pi package cannot fail the connectivity probe.
+if [ "$WITH_PACKAGES" != "true" ]; then
+  PROBE_CMD+=(--no-extensions --no-skills)
+fi
 [ -n "$PROBE_PROVIDER" ] && PROBE_CMD+=(--provider "$PROBE_PROVIDER")
 [ -n "$MODEL" ] && PROBE_CMD+=(--model "$MODEL")
 [ -n "$API_KEY" ] && PROBE_CMD+=(--api-key "$API_KEY")

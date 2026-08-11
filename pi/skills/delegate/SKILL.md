@@ -2,7 +2,7 @@
 name: delegate
 description: Delegates a coding task to pi (dev/pi), a minimal terminal coding harness. This skill should be used when the user asks to "use pi", "run pi", "delegate to pi", "let pi handle this", "ask pi to", "have pi do", or invokes /pi:delegate. It bridges the current Claude Code context to the pi CLI, passing relevant files, git state, and the task description for execution by the pi-agent.
 user-invocable: true
-argument-hint: "<task description> [--endpoint ENDPOINT] [--provider PROVIDER] [--model MODEL] [--api-key KEY] [--thinking LEVEL] [--tools TOOL_LIST] [--exclude-tools TOOL_LIST] [--no-git] | --edit-config [--local|--shared|--global] | --list-models | --doctor"
+argument-hint: "<task description> [--endpoint ENDPOINT] [--provider PROVIDER] [--model MODEL] [--api-key KEY] [--thinking LEVEL] [--tools TOOL_LIST] [--exclude-tools TOOL_LIST] [--no-git] [--with-packages] | --edit-config [--local|--shared|--global] | --list-models | --doctor"
 allowed-tools: ["Task", "Bash(git:*)", "Bash(jq:*)", "Bash(ls:*)", "Bash(find:*)", "Bash(cat:*)", "Bash(mkdir:*)", "Bash(mv:*)", "Bash(echo:*)", "Bash(command -v:*)", "Bash(grep:*)", "Bash(head:*)", "Bash(vi:*)", "Read", "Grep", "Glob"]
 disallowed-tools: ["Bash(pi:*)"]
 ---
@@ -82,7 +82,7 @@ Each endpoint key has `provider` (required), optional `baseUrl`, optional `apiKe
 
 ### Reading settings
 
-Read the settings files in priority order (lowest first, so each overrides the previous), resolving endpoint-first with flat-field fallback, CLI `--endpoint`/`--model`/`--api-key` overrides, and the model-ownership check. The full snippet lives in `references/settings.md` — run it before building the pi-agent prompt so `$PROVIDER`/`$MODEL`/`$ENDPOINT`/`$API_KEY`/`$BASE_URL` are resolved. It yields `PROVIDER`, `MODEL`, `ENDPOINT`, `API_KEY`, `BASE_URL`, `THINKING`, `TOOLS`, `EXCLUDE_TOOLS`.
+Read the settings files in priority order (lowest first, so each overrides the previous), resolving endpoint-first with flat-field fallback, CLI `--endpoint`/`--model`/`--api-key` overrides, and the model-ownership check. The full snippet lives in `references/settings.md` — run it before building the pi-agent prompt so `$PROVIDER`/`$MODEL`/`$ENDPOINT`/`$API_KEY`/`$BASE_URL` are resolved. It yields `PROVIDER`, `MODEL`, `ENDPOINT`, `API_KEY`, `BASE_URL`, `THINKING`, `TOOLS`, `EXCLUDE_TOOLS`, `WITH_PACKAGES`.
 
 ### `--edit-config` flag
 
@@ -153,7 +153,7 @@ Then stop — do not proceed to delegate.
 
 ### `--doctor` flag
 
-When `$ARGUMENTS` is exactly `--doctor`, run a comprehensive configuration check. **Delegate it to `pi:pi-agent` with `MODE: doctor`** — the agent holds `Bash(pi:*)` (which delegate's allowed-tools deliberately does not, to enforce the delegation contract), so it can run the pi installation/connectivity probes in `references/doctor.md`. Pass the resolved `$PROVIDER`/`$MODEL`/`$THINKING` (and `$ENDPOINT` if a CLI `--endpoint` selected one) as inputs; **do NOT pass `$API_KEY`/`$BASE_URL`** — the pi-agent re-reads them from the settings files itself, so the key never enters the model's context and doctor inherits the agent's endpoint resolution. The agent runs the doctor script and returns the check results.
+When `$ARGUMENTS` is exactly `--doctor`, run a comprehensive configuration check. **Delegate it to `pi:pi-agent` with `MODE: doctor`** — the agent holds `Bash(pi:*)` (which delegate's allowed-tools deliberately does not, to enforce the delegation contract), so it can run the pi installation/connectivity probes in `references/doctor.md`. Pass the resolved `$PROVIDER`/`$MODEL`/`$THINKING`/`$WITH_PACKAGES` (and `$ENDPOINT` if a CLI `--endpoint` selected one) as inputs; **do NOT pass `$API_KEY`/`$BASE_URL`** — the pi-agent re-reads them from the settings files itself, so the key never enters the model's context and doctor inherits the agent's endpoint resolution. The agent runs the doctor script and returns the check results.
 
 ## Argument Parsing
 
@@ -169,6 +169,7 @@ Parse `$ARGUMENTS` to extract the task description and optional flags. The task 
 | `--tools` | Comma-separated allowed tools list | CLI > settings > `read,bash,write,edit,grep,find,ls` |
 | `--exclude-tools` | Comma-separated blocked tools list | CLI > settings > (none) |
 | `--no-git` | Skip collecting git context | CLI > settings > `false` |
+| `--with-packages` | Load the user's global pi packages/skills/extensions (default is clean mode: off) | CLI > settings `withPackages` > `false` |
 
 ### Resolution order per flag
 
@@ -204,6 +205,7 @@ THINKING: <resolved, default max>
 TOOLS: <resolved, default read,bash,write,edit,grep,find,ls>
 EXCLUDE_TOOLS: <resolved from --exclude-tools or empty>
 NO_GIT: <true if --no-git>
+WITH_PACKAGES: <true if --with-packages or settings withPackages; empty/false = clean mode>
 APPEND_PATHS: <(omit — the pi-agent adds CLAUDE.md itself, and collects git context per NO_GIT)>
 ```
 
@@ -281,6 +283,7 @@ Claude: Passes `NO_GIT: true` along with the task description to pi-agent, so it
 - pi MUST be installed globally. The skill checks and blocks if not found.
 - **Never run pi directly — always delegate to `pi:pi-agent`.** The agent is the plugin's single execution path and owns backgrounding, verification, and error handling.
 - Settings are shared with `/pi:review` via the same file chain (`.claude/pi.local.json`, `.claude/pi.json`, `~/.claude/pi.local.json`) and the same endpoint-first format.
+- **Default clean mode:** the pi-agent adds `--no-extensions --no-skills` so interactive pi packages (and `~/.pi/agent/skills`) do not load. Pass `--with-packages` or set `"withPackages": true` to opt in.
 - `--no-session` prevents pi from creating session files; `--no-context-files` prevents pi from reading its own AGENTS.md/CLAUDE.md (which could conflict with the current project's context); `--approve` skips any project trust prompts. The pi-agent adds these.
 - **CLAUDE.md context is always passed** by pi-agent via `--append-system-prompt` as file paths — `~/.claude/CLAUDE.md` (user global) and `./CLAUDE.md` (project).
 - To configure pi (provider, model, base URL), run `/pi:setup` instead of passing flags manually.

@@ -2,7 +2,7 @@
 name: review
 description: Reviews code using pi CLI with read-only tools. Delegates the review to pi (dev/pi) with a structured review rubric, running in read-only mode to prevent accidental edits. By default reviews uncommitted working tree changes (git diff HEAD) with pi restricted to the read tool; explicit targets (--branch/--diff/@file/PR) or --explore widen pi to read,grep,find,ls. Use when the user asks to "review code with pi", "pi review", "have pi review", "let pi review", or invokes /pi:review.
 user-invocable: true
-argument-hint: "[@target] [--branch BRANCH] [--diff RANGE] [--endpoint ENDPOINT] [--model MODEL] [--thinking LEVEL] [--explore] | --edit-config [--local|--shared|--global] | --list-models"
+argument-hint: "[@target] [--branch BRANCH] [--diff RANGE] [--endpoint ENDPOINT] [--model MODEL] [--thinking LEVEL] [--explore] [--with-packages] | --edit-config [--local|--shared|--global] | --list-models"
 allowed-tools: ["Task", "Bash(git:*)", "Bash(jq:*)", "Bash(ls:*)", "Bash(find:*)", "Bash(cat:*)", "Bash(mkdir:*)", "Bash(echo:*)", "Bash(command -v:*)", "Bash(mktemp:*)", "Bash(rm:*)", "Bash(mv:*)", "Bash(sed:*)", "Bash(grep:*)", "Bash(head:*)", "Bash(awk:*)", "Bash(tr:*)", "Bash(gh:*)", "Bash(bash:*)", "Bash(vi:*)", "Read", "Grep", "Glob"]
 ---
 # CRITICAL: pi Code Review
@@ -45,7 +45,7 @@ Settings files use the format below. Load `references/settings.md` for the full 
 }
 ```
 
-Each endpoint key has `provider` (required), optional `baseUrl`, and `models`. Values may reference env vars via `$VAR`. Read the merged settings with the `Reading settings` snippet in `references/settings.md` — it yields `ENDPOINT`, `MODEL`, `THINKING`, `PROVIDER`, `BASE_URL`, `API_KEY`.
+Each endpoint key has `provider` (required), optional `baseUrl`, and `models`. Values may reference env vars via `$VAR`. Read the merged settings with the `Reading settings` snippet in `references/settings.md` — it yields `ENDPOINT`, `MODEL`, `THINKING`, `PROVIDER`, `BASE_URL`, `API_KEY`, `WITH_PACKAGES`.
 
 Before parsing review targets, handle the two settings-only flags from `references/settings.md` and stop (do not proceed to review):
 - `$ARGUMENTS` is exactly `--edit-config` (with optional scope flag) → open the settings file (see `references/settings.md`).
@@ -61,6 +61,7 @@ Parse `$ARGUMENTS` to extract the review target and optional flags. The target i
 | `--model` | Model ID to use for this review | CLI > settings > (endpoint's first model) |
 | `--thinking` | Thinking level (off/minimal/low/medium/high/xhigh/max) | CLI > settings > `max` |
 | `--explore` | Force full read-only exploration tools (`read,grep,find,ls`) even for the default working-tree review. Without this, the default review gets `read` only. | CLI flag |
+| `--with-packages` | Load the user's global pi packages/skills/extensions (default is clean mode: off) | CLI > settings `withPackages` > `false` |
 
 ### Resolution order per flag
 
@@ -242,12 +243,13 @@ MODEL: <resolved from settings>
 ENDPOINT: <resolved endpoint key or empty — lets the pi-agent read credentials from the right endpoint (non-secret)>
 THINKING: <resolved, default max>
 TOOLS: <$TOOLS — read, or read,grep,find,ls>
+WITH_PACKAGES: <true if --with-packages or settings withPackages; empty/false = clean mode>
 APPEND_PATHS: <$APPEND_PATHS — CLAUDE.md paths + GIT_FILE + DIFF_FILE; the agent emits each as its own --append-system-prompt>
 FILE_REFS: <$FILE_REFS — @file args, one per line; omit if none>
 CLEANUP_FILES: <$DIFF_FILE $GIT_FILE — the agent removes them when pi exits>
 ```
 
-**Do NOT pass `API_KEY` or `BASE_URL`** — the pi-agent reads them from the settings files itself (so the actual key/URL never enters the model's context). The pi-agent emits `--append-system-prompt` for every `APPEND_PATHS` entry, writes `baseUrl` to the agent-dir `models.json` when it resolves one, runs pi in the background with `--no-session --no-context-files --approve`, and reports pi's stdout — which is the review text.
+**Do NOT pass `API_KEY` or `BASE_URL`** — the pi-agent reads them from the settings files itself (so the actual key/URL never enters the model's context). The pi-agent emits `--append-system-prompt` for every `APPEND_PATHS` entry, writes `baseUrl` to the agent-dir `models.json` when it resolves one, runs pi in the background with `--no-session --no-context-files --approve` plus default clean mode (`--no-extensions --no-skills` unless `WITH_PACKAGES=true`), and reports pi's stdout — which is the review text.
 
 ## Handling Output
 

@@ -52,6 +52,9 @@ API_KEY=$(resolve_env "$(echo "$CONFIG" | jq -r --arg e "$ENDPOINT" 'if $e != ""
 THINKING=$(resolve_env "$(echo "$CONFIG" | jq -r '.thinking // "max"')")
 TOOLS=$(resolve_env "$(echo "$CONFIG" | jq -r '.tools // ""')")
 EXCLUDE_TOOLS=$(resolve_env "$(echo "$CONFIG" | jq -r '.excludeTools // ""')")
+# Clean mode is default. withPackages:true (or CLI --with-packages) opts into loading
+# the user's global pi packages/skills/extensions.
+WITH_PACKAGES=$(echo "$CONFIG" | jq -r 'if .withPackages == true then "true" else "" end')
 # Base model: resolve defaultModel (or endpoint's first model), used by the ownership
 # check below after any CLI override is applied.
 # If model still empty, use the first model from the endpoint.
@@ -86,6 +89,10 @@ fi
 if echo "$FLAGS_REGION" | grep -q -- '--api-key'; then
   CLI_API_KEY=$(echo "$FLAGS_REGION" | sed -n 's/.*--api-key[= ]\([^ ]*\).*/\1/p' | head -1)
   [ -n "$CLI_API_KEY" ] && API_KEY=$(resolve_env "$CLI_API_KEY")
+fi
+# CLI --with-packages: opt into loading global pi packages/skills/extensions.
+if echo "$FLAGS_REGION" | grep -q -- '--with-packages'; then
+  WITH_PACKAGES="true"
 fi
 # Re-resolve provider/baseUrl/apiKey for the (possibly CLI-selected) endpoint, and honor
 # CLI_MODEL explicitly (a CLI --model must win over any configured defaultModel).

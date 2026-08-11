@@ -60,7 +60,8 @@ Values can reference environment variables using `$VAR` or `${VAR}` syntax — t
   },
   "defaultEndpoint": "local-proxy",
   "defaultModel": "gemini-3.6-flash-high",
-  "thinking": "max"
+  "thinking": "max",
+  "withPackages": false
 }
 ```
 
@@ -69,6 +70,8 @@ Each endpoint key has:
 - `baseUrl` (optional) — custom API endpoint; when present it is written to `~/.pi/agent/models.json` at runtime
 - `apiKey` (optional) — API key or `$ENV_VAR` reference
 - `models` — array of model IDs available via this endpoint
+
+Top-level `withPackages` (default false) is the clean-mode escape hatch: when true, `/pi:delegate` and `/pi:review` load the user's global pi packages/skills/extensions. Leave it false unless you intentionally want bridge tasks to inherit interactive pi plugins.
 
 Legacy flat fields (`provider`/`model`/`baseUrl`/`apiKey`) are still honored by the delegate skill as a fallback when no `defaultEndpoint` is set, but new setups should use the endpoint format.
 
@@ -107,7 +110,7 @@ fi
 # Only pass --model when set — an empty --model is silently accepted by pi but the
 # probe then runs without the intended model (setup never resolves MODEL itself).
 [ -n "$MODEL" ] && CMD+=(--model "$MODEL")
-CMD+=(--thinking low --no-session --no-context-files --approve "Reply with exactly: OK. Model: <model-name>")
+CMD+=(--thinking low --no-session --no-context-files --approve --no-extensions --no-skills "Reply with exactly: OK. Model: <model-name>")
 # </dev/null: pi -p hangs on a terminal/pipe stdin (mis-detects interactive) — force non-interactive.
 "${CMD[@]}" </dev/null
 ```
@@ -231,7 +234,7 @@ fi
 # Only pass --model when set — an empty --model is silently accepted by pi but the
 # probe then runs without the intended model (setup never resolves MODEL itself).
 [ -n "$MODEL" ] && CMD+=(--model "$MODEL")
-CMD+=(--thinking low --no-session --no-context-files --approve "Reply with exactly: OK. Model: <model-name>")
+CMD+=(--thinking low --no-session --no-context-files --approve --no-extensions --no-skills "Reply with exactly: OK. Model: <model-name>")
 # Pin the probe to the agent dir we just wrote (matches pi-agent's run pattern).
 # </dev/null: pi -p hangs on a terminal/pipe stdin (mis-detects interactive).
 PI_CODING_AGENT_DIR="$AGENT_DIR" "${CMD[@]}" </dev/null
