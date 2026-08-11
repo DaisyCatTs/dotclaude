@@ -15,7 +15,7 @@
 - [project_mattpocock_fork.md](project_mattpocock_fork.md) — mattpocock = mattpocock/skills 全量 fork + BDD(替代tdd) + BDD-driven tdd(Automation) + 自改进重实现；同步规则、交叉引用规则、决策记录
 - [project_agentbook_commons_bridge.md](project_agentbook_commons_bridge.md) — commons-bridge 设计已 PASS 但无 plan 无代码；要点存 docs/orphaned-designs.md；重启时改走 mattpocock 流程
 - [project_autoresearch_plugin.md](project_autoresearch_plugin.md) — autoresearch：ralph-loop Stop hook + 混合引擎(顺序→tournament) + worktree 隔离 + 临时提交模型
-- [project_gitflow_plugin.md](project_gitflow_plugin.md) — gitflow 建在 git-flow-next（非经典 git-flow）；finish 停 main/不自动 push；CRITICAL 规则链
+- [project_gitflow_plugin.md](project_gitflow_plugin.md) — gitflow 功能已并入 git 插件（6 个 start/finish skill）；建在 git-flow-next 之上，finish 停 main/不自动 push
 - [project_antigravity_plugin.md](project_antigravity_plugin.md) — antigravity 桥接 Google Gemini Managed Agents；实测 API 事实与已知 HIGH 缺陷清单
 - [project_hardware_plugin.md](project_hardware_plugin.md) — hardware 通用 EDA 伞形插件：use-kicad-cli(KiCad 9.0) + use-openscad；CRITICAL 规则经独立 agent 核验
 - [project_reviewpr_closeout.md](project_reviewpr_closeout.md) — review-pr 五阶段：Phase 3 hide+resolve(GraphQL)、Phase 5 总结评论+重写 PR title/body、Stop hook 每用户回合只拦一次强制 merge ask；真链接指针；残留拦截先验证真实
@@ -26,5 +26,4 @@
 - [reference_anthropic_harness_blog.md](reference_anthropic_harness_blog.md) — Anthropic harness 设计博文：context reset、GAN 评估器、假设测试、simplify-don't-add
 - [reference_git_coauthor_allowlist.md](reference_git_coauthor_allowlist.md) — git-agent co-author 域名 allowlist（非硬编码，可 model_co_author_domains 追加）；本机已加 zhipuai/qwen/deepseek/moonshot；stringslice 是整行覆盖
 - [reference_config_unified_pattern.md](reference_config_unified_pattern.md) — 插件配置统一格式：扁平JSON(baseUrl/model/apiKey)、.env引用、CLI>进程env>.local.json>.json优先级
-- [project_vision_bridge_plugin.md](project_vision_bridge_plugin.md) — vision 已删代理（hook+describe）；粘贴截图用网关视觉模型，代理已否决勿再提议
 - [project_plugin_rename_sync.md](project_plugin_rename_sync.md) — 插件改名后 enabledPlugins key 不自动跟随；hooks.json 顶层必须有 hooks 键（vision 教训）

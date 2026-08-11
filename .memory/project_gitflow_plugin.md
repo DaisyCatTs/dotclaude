@@ -1,11 +1,13 @@
 ---
 name: project_gitflow_plugin
-description: gitflow 插件建在 git-flow-next 之上，非经典 nvie/avh git-flow；finish 停 main/不自动
-  push
+description: gitflow 功能已并入 git 插件（6 个 start/finish skill）；建在 git-flow-next 之上，finish 停
+  main/不自动 push
 type: project
 ---
 
-`gitflow` 插件（commit scope `gitflow`，6 个 skill：feature/release/hotfix 的 start/finish）建在 **git-flow-next**（git-flow.sh / gittower，Go 重写版，brew `gittower/tap/git-flow-next`）之上——**不是**经典 nvie/avh git-flow，flag 与行为有别。
+独立 gitflow 插件已于 2026-08-02 移除（commit `12055fc4 refactor: restructure marketplace plugins`），gitflow 的 6 个 skill 并入 `git` 插件：`git/skills/{start,finish}-{feature,release,hotfix}`。无独立 commit scope——相关提交走 `git` scope。
+
+6 个 skill 建在 **git-flow-next**（git-flow.sh / gittower，Go 重写版，brew `gittower/tap/git-flow-next`）之上——**不是**经典 nvie/avh git-flow，flag 与行为有别。
 
 **git-flow-next 关键事实：**
 - 默认主分支是 `main`，默认前缀 `feature/`/`release/`/`hotfix/`
@@ -20,6 +22,6 @@ type: project
 - 提交走 `git add … && git-agent commit --no-stage …` 链式命令（git hook 放行形态）
 - 不要硬编码模型版本——从运行时身份推导
 
-**How to apply:** 改本插件前按 git-flow-next（非经典 gitflow）核对；升级 git-flow-next 后重验 finish 落点/flag。
+**How to apply:** 改 git 插件内 gitflow skill 前按 git-flow-next（非经典 gitflow）核对；升级 git-flow-next 后重验 finish 落点/flag。
 
 关联：[[feedback_git_commit_hook_needed]]、[[feedback_skill_level_enforcement]]

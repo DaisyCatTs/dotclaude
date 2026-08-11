@@ -7,7 +7,7 @@ type: reference
 
 ## 统一配置格式
 
-dotclaude 插件配置管理的最佳实践，经过 pi 和 vision 两个插件的统一验证：
+dotclaude 插件配置管理的最佳实践，在 pi 插件中得到验证（vision 插件已删）。
 
 ### 文件命名与位置
 

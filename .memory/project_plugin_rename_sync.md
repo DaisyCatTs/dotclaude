@@ -11,4 +11,4 @@ dotclaude marketplace 里插件改名（如 superdev → mattpocock）后，`~/.
 
 **How to apply:** 任何插件 rename/remove 后，grep `~/.claude/settings.json` 的 enabledPlugins 和 `~/.claude/plugins/installed_plugins.json`，同步/卸载孤儿。插件级 `hooks/hooks.json` 文件格式必须为 `{ "description": ..., "hooks": { "EventName": [ { "hooks": [{ "type": "command", "command": ... }] } ] } }` —— 顶层直接放事件名（无 `hooks` 外层键）会报 `Invalid input: expected record, received undefined`（vision 插件教训）。官方参考见 `.research/claude-plugins-official/plugins/*/hooks/hooks.json`。
 
-相关：[[project_vision_bridge_plugin]] [[feedback_claude_code_guide]]
+相关：[[feedback_claude_code_guide]]
