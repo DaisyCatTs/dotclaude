@@ -1,0 +1,37 @@
+{
+  "name": "git-agent",
+  "version": "0.7.0",
+  "displayName": "Git Agent",
+  "description": "AI-first Git CLI automation — atomic AI commits, co-change relations (git-agent related), pre-tool hook safety, and workspace initialization",
+  "author": {
+    "name": "Frad LEE",
+    "email": "fradser@gmail.com"
+  },
+  "keywords": [
+    "git-agent",
+    "atomic-commits",
+    "co-change",
+    "pretool-hook",
+    "git"
+  ],
+  "license": "MIT",
+  "commands": [
+    "./skills/commit/",
+    "./skills/commit-and-push/",
+    "./skills/related/",
+    "./skills/init/"
+  ],
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/validate-commit-pretool.sh"
+          }
+        ]
+      }
+    ]
+  }
+}
