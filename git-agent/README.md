@@ -1,27 +1,43 @@
-# Git Agent Package for Pi
+# git-agent Plugin (Claude Code)
 
-AI-first Git CLI automation — atomic AI commits, co-change relations (`git-agent related`), pre-tool hook safety, and workspace initialization.
+Claude Code plugin for the [git-agent](https://github.com/FradSer/git-agent) CLI: atomic AI commits, co-change relations, and a PreToolUse guard that blocks raw `git add` / `git commit`.
 
-## Overview
+This tree is only for Claude Code (`@git-agent/` / `/git-agent:*`). It is not packaged for the pi coding harness; that packaging, if any, lives outside this marketplace.
 
-This package integrates `git-agent` into the Pi coding agent environment:
+## Prerequisites
 
-- **Atomic Commits**: Automatically splits staged changes into up to 5 logically distinct commits with AI-generated conventional messages (`git-agent commit`).
-- **Co-change Relations**: Mined from git commit history to reveal files and test suites that historically change together (`git-agent related`).
-- **Automatic Model Identity Resolution**: `git-agent` auto-detects active agent environment variables (`PI_MODEL`, `CLAUDE_CODE_MODEL`, `CODEX_MODEL`, `MODEL`), eliminating the need to pass manual co-author flags.
-- **PreToolUse Hook Guard**: Intercepts raw `git commit` / `git add` and redirects to `git-agent` atomic commits.
+- `git-agent` CLI on `PATH`
 
-## Skills Included
+## Commands
 
-- `commit`: Creates atomic conventional commits via `git-agent`.
-- `commit-and-push`: Creates atomic conventional commits and pushes to the remote repository.
-- `related`: Mines git history for historically coupled files and test suites (`git-agent related`).
-- `init`: Regenerates commit scopes and `.gitignore` rules from history (`git-agent init`).
+| Command | Purpose |
+|---------|---------|
+| `/git-agent:commit` | Atomic conventional commits via `git-agent commit` |
+| `/git-agent:commit-and-push` | Commit then push |
+| `/git-agent:related` | Historical co-change query (`git-agent related`) |
+| `/git-agent:init` | Regenerate scopes / `.gitignore` from history |
 
-## Installation
+## Hook
 
-```bash
-pi install /Users/FradSer/Developer/FradSer/pi-packages/git-agent
+`PreToolUse` on `Bash` runs `hooks/validate-commit-pretool.sh`:
+
+- Denies raw `git commit` and standalone `git add`
+- Allows `git add <path> && git-agent commit ...` chains
+- Escape hatch: `GIT_SKILL_FALLBACK=1`
+
+## Layout
+
+```
+git-agent/
+├── .claude-plugin/plugin.json
+├── hooks/validate-commit-pretool.sh
+├── skills/
+│   ├── commit/
+│   ├── commit-and-push/
+│   ├── related/
+│   └── init/
+├── references/
+└── tests/
 ```
 
 ## License
