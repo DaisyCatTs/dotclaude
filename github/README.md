@@ -121,8 +121,8 @@ Creates comprehensive GitHub pull requests with quality validation and gates, th
 **Example workflow:**
 ```bash
 # Make atomic commits following conventional format
-/git:commit  # First feature commit
-/git:commit  # Second feature commit
+# Commit your changes following conventional format
+# Commit your changes following conventional format
 
 # Create PR with quality gates
 /github:create-pr
@@ -355,8 +355,8 @@ Reviews a PR, then keeps a persistent watch over CI results and incoming reviewe
 # - Delegate to /github:create-pr when complete
 
 # 3. Or manual development
-/git:commit  # Follow conventional format
-/git:commit
+# Commit your changes following conventional format
+# Commit your changes
 
 # 4. Create PR with quality gates
 /github:create-pr

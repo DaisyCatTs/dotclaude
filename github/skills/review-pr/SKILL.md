@@ -1,7 +1,7 @@
 ---
 name: review-pr
 allowed-tools: Task, Bash(gh:*), Bash(git:*), ExitWorktree, Monitor, PushNotification, TaskStop, Skill, AskUserQuestion, Read, Edit, Write
-description: 'Reviews a pull request: runs its own baseline review of the PR diff, then a persistent Monitor watches CI and incoming reviewer comments, triages each comment through an independent skeptical agent, applies only verified fixes, and commits+pushes via /git:commit-and-push until CI passes and no comments remain to adopt — then asks whether to merge. Use this skill when the user asks to "review a PR", "monitor PR review comments", "address reviewer feedback on #123", or "watch CI on a pull request".'
+description: 'Reviews a pull request: runs its own baseline review of the PR diff, then a persistent Monitor watches CI and incoming reviewer comments, triages each comment through an independent skeptical agent, applies only verified fixes, and commits+pushes via inline git commands until CI passes and no comments remain to adopt — then asks whether to merge. Use this skill when the user asks to "review a PR", "monitor PR review comments", "address reviewer feedback on #123", or "watch CI on a pull request".'
 argument-hint: <PR number or URL> [--auto-merge]
 user-invocable: true
 ---
@@ -41,7 +41,7 @@ The only valid skip is an explicit user opt-out ("just baseline review, don't wa
 
 **Goal**: Fix what is actionable, reject the noise, escalate the ambiguous. Full rules, prompt template, verdict format, and reply/hide/resolve lifecycle in `references/review-loop.md`.
 
-- `[ci] <name>: fail|cancel` → fetch logs (`gh run view <run-id> --log-failed`), apply the fix, commit+push via `Skill("git:commit-and-push")`. The push triggers a fresh CI run the same Monitor re-emits. **CRITICAL: stop and report (do NOT auto-fix) for auth/permission, missing-secret, flaky, or infrastructure failures.**
+- `[ci] <name>: fail|cancel` → fetch logs (`gh run view <run-id> --log-failed`), apply the fix, commit+push via inline git commands (`git add <file> && git commit -m "<type>(<scope>): <summary>" && git push`). The push triggers a fresh CI run the same Monitor re-emits. **CRITICAL: stop and report (do NOT auto-fix) for auth/permission, missing-secret, flaky, or infrastructure failures.**
 - `[comment]` batch → **CRITICAL: spawn an independent review-triage Task agent with clean context.** Apply ONLY the `fix` verdicts; reject/escalate the rest. **CRITICAL: reply by comment type** — inline review comment → `gh api repos/$REPO/pulls/$PR/comments/<id>/replies`; issue-level comment → `gh pr comment` (no reply endpoint); review summary → skip reply. Use the `id=<n>`/`node=<id>` tokens from each emitted line. Commit+push all `fix` changes in one round; then hide each fully-addressed comment (`fix` pushed or `reject` replied) as `OUTDATED` via `minimizeComment` and resolve its thread via `resolveReviewThread` (inline only). Leave `escalate` comments open. Send a `PushNotification` per `escalate`.
 - `[comment]` ambiguous (design disagreement, scope change, unclear intent) → `PushNotification` and report; do not guess, reply, hide, or resolve.
 
@@ -76,6 +76,6 @@ Stop the Monitor with `TaskStop` when EITHER holds — full conditions in `refer
 
 - **Review Loop**: `references/review-loop.md` - Monitor script, size→INTERVAL table, triage agent prompt, verdict format, lifecycle/stop conditions
 - **Closeout**: `references/closeout.md` - Summary comment, body rewrite, merge decision, post-merge hygiene constraints
-- **Commit Standards**: `references/commit-standards.md` - Commit message format for the /git:commit-and-push rounds
+- **Commit Standards**: `references/commit-standards.md` - Commit message format for the inline git commit rounds
 - **Repository Templates**: `references/repository-templates.md` - Contributing guidelines conformance for fixes
 - **Examples**: `references/examples.md` - Commit message examples

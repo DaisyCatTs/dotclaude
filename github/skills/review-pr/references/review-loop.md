@@ -205,7 +205,7 @@ Be terse. One line per comment, verdict first.
    comments stay visible. See "Closing out resolved comments" below for the exact commands.
    `escalate` comments stay open until the user decides.
 
-Apply the validated fixes, commit and push them via the `/git:commit-and-push` skill (Skill tool), then acknowledge each. **The reply endpoint depends on comment type** — the `/pulls/$PR/comments/<id>/replies` endpoint ONLY accepts inline review-comment ids; using it for an issue-level comment or a review summary hits the wrong resource and fails:
+Apply the validated fixes, commit and push them via inline git commands (`git add`, `git commit`, `git push`), then acknowledge each. **The reply endpoint depends on comment type** — the `/pulls/$PR/comments/<id>/replies` endpoint ONLY accepts inline review-comment ids; using it for an issue-level comment or a review summary hits the wrong resource and fails:
 
 ```bash
 # Reply to an accepted/rejected INLINE review comment (id=<n> from the emitted line).
