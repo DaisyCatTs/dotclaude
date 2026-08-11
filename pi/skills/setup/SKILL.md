@@ -71,7 +71,7 @@ Each endpoint key has:
 - `apiKey` (optional) — API key or `$ENV_VAR` reference
 - `models` — array of model IDs available via this endpoint
 
-Top-level `withPackages` (default false) is the clean-mode escape hatch: when true, `/pi:delegate` and `/pi:review` load the user's global pi packages/skills/extensions. Leave it false unless you intentionally want bridge tasks to inherit interactive pi plugins.
+Top-level `withPackages` (default false) is the clean-mode escape hatch: when true, `/pi:delegate` and `/pi:review` load packages/skills/extensions from the **pi CLI home** (`~/.pi`, configured via `pi install` / `pi list` — not Claude Code plugins). Leave it false unless you intentionally want bridge tasks to inherit that interactive pi configuration.
 
 Legacy flat fields (`provider`/`model`/`baseUrl`/`apiKey`) are still honored by the delegate skill as a fallback when no `defaultEndpoint` is set, but new setups should use the endpoint format.
 

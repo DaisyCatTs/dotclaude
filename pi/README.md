@@ -1,6 +1,15 @@
-# pi Plugin
+# pi Plugin (Claude Code)
 
-Bridges [pi](https://github.com/earendil-works/pi) (dev/pi), a minimal terminal coding harness, into Claude Code. Delegates coding tasks to the `pi` CLI tool for execution.
+This is a **Claude Code plugin** (`@pi/` / `/pi:*`). It is **not** the pi coding agent itself.
+
+It bridges [pi](https://github.com/earendil-works/pi) (dev/pi), a separate terminal coding harness, into Claude Code: resolve Claude-side settings, then run the `pi` CLI through `pi:pi-agent`.
+
+| Layer | What it is | Config |
+|-------|------------|--------|
+| This plugin | Claude Code commands/agent that call pi | `.claude/pi*.json`, `~/.claude/pi.local.json` |
+| pi CLI | External binary `@earendil-works/pi-coding-agent` | `~/.pi/agent/` (`settings.json`, packages, `models.json`) |
+
+**Default clean mode:** bridge runs of `pi` pass `--no-extensions --no-skills`, so pi CLI packages under `~/.pi` do not load. That does not affect other Claude Code plugins. Opt in with `--with-packages` or `"withPackages": true`.
 
 ## Prerequisites
 
