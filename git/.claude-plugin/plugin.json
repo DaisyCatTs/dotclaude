@@ -1,6 +1,6 @@
 {
   "name": "git",
-  "version": "0.6.1",
+  "version": "0.6.2",
   "description": "GitFlow workflow automation for feature, hotfix, and release branches with post-finish cleanup",
   "displayName": "Git",
   "author": {
@@ -20,6 +20,8 @@
     "./skills/start-hotfix/",
     "./skills/finish-hotfix/",
     "./skills/start-release/",
-    "./skills/finish-release/"
+    "./skills/finish-release/",
+    "./skills/commit/",
+    "./skills/commit-and-push/"
   ]
 }

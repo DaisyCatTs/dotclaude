@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# PreToolUse hook — redirect bare `git commit` / `git add` to the /commit skill or git-agent.
+# PreToolUse hook — redirect bare `git commit` / `git add` to git-agent.
 #
 # Background: Agent built-in commit flow (status -> diff -> add -> commit) takes
 # priority over prompt instructions. Without this hook the agent runs the
@@ -8,9 +8,8 @@
 # denies it with a message pointing at git-agent.
 #
 # Allowed exceptions:
-#   1. `git add <path> && git-agent commit ...` chained in one command — scoped staging
-#      for `git-agent commit --no-stage`.
-#   2. The GIT_SKILL_FALLBACK=1 marker — manual fallback path when git-agent binary is absent.
+#   `git add <path> && git-agent commit ...` chained in one command — scoped staging
+#   for `git-agent commit --no-stage`.
 
 set -uo pipefail
 
@@ -37,10 +36,6 @@ deny() {
   exit 0
 }
 
-# Escape hatch: manual fallback prefix
-MARKER='(^|[;&|[:space:]])GIT_SKILL_FALLBACK=1([;&|[:space:]]|$)'
-[[ $cmd =~ $MARKER ]] && exit 0
-
 # Command position anchor
 POS=$'(^|[;&|\n])[[:space:]]*([A-Za-z_][A-Za-z_0-9]*=[^[:space:]]*[[:space:]]+)*'
 END='([;&|[:space:]]|$)'
@@ -48,14 +43,14 @@ END='([;&|[:space:]]|$)'
 # Raw `git commit` check
 RE_COMMIT="${POS}git[[:space:]]+commit${END}"
 if [[ $cmd =~ $RE_COMMIT ]]; then
-  deny "Use the /commit or /commit-and-push skill (or git-agent CLI) instead of raw git add/git commit. It creates atomic AI commits with validation."
+  deny "Use /git-agent:commit or /git-agent:commit-and-push instead of raw git commit. git-agent creates atomic AI commits with conventional messages."
 fi
 
 # `git add` without chained `git-agent commit`
 RE_ADD="${POS}git[[:space:]]+add${END}"
 RE_AGENT="${POS}git-agent[[:space:]]+commit${END}"
 if [[ $cmd =~ $RE_ADD ]] && ! [[ $cmd =~ $RE_AGENT ]]; then
-  deny "Use the /commit skill instead of raw git add. For folder-scoped staging, chain it with git-agent: git add <path> && git-agent commit --no-stage ..."
+  deny "Use /git-agent:commit instead of raw git add. For folder-scoped staging, chain it with git-agent: git add <path> && git-agent commit --no-stage ..."
 fi
 
 exit 0

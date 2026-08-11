@@ -18,15 +18,21 @@ CRITICAL:
    ```bash
    git-agent commit --intent "<intent>"
    ```
-4. On auth error (401), retry with `--free`:
+4. If specific files are already staged, pass `--no-stage`:
+   ```bash
+   git-agent commit --no-stage --intent "<intent>"
+   ```
+5. On auth error (401), retry with `--free`:
    ```bash
    git-agent commit --free --intent "<intent>"
    ```
-5. **Fallback** (if `git-agent` binary is not found): follow manual commit fallback ladder in `../../references/coauthor-attribution.md` using `GIT_SKILL_FALLBACK=1`.
-6. Push to remote repository:
+6. **Fallback** (if `git-agent` binary is not found): report the error and ask the user to install git-agent or run git commands manually.
+7. Push to remote repository:
    ```bash
    git push
    ```
    (If upstream is not set, use `git push -u origin <branch>`).
 
 CLI Reference: `../../references/cli.md`
+
+> **Deterministic messages:** When an exact commit message is required (e.g. version bump `chore: bump version to 0.11.0`), pass the full conventional message as the `--intent` value. The intent is used as the commit subject verbatim.

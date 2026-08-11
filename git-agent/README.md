@@ -23,7 +23,7 @@ This tree is only for Claude Code (`@git-agent/` / `/git-agent:*`). It is not pa
 
 - Denies raw `git commit` and standalone `git add`
 - Allows `git add <path> && git-agent commit ...` chains
-- Escape hatch: `GIT_SKILL_FALLBACK=1`
+- git-agent binary is required — no fallback to raw git commands
 
 ## Layout
 

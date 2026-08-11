@@ -26,6 +26,8 @@ CRITICAL:
    ```bash
    git-agent commit --free --intent "<intent>"
    ```
-6. **Fallback** (if `git-agent` binary is not found): follow manual commit fallback ladder in `../../references/coauthor-attribution.md` using `GIT_SKILL_FALLBACK=1`.
+6. **Fallback** (if `git-agent` binary is not found): report the error and ask the user to install git-agent or run git commands manually.
 
 CLI Reference: `../../references/cli.md`
+
+> **Deterministic messages:** When an exact commit message is required (e.g. version bump `chore: bump version to 0.11.0`), pass the full conventional message as the `--intent` value. The intent is used as the commit subject verbatim.
