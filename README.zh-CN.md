@@ -1,4 +1,4 @@
-# Frad 的 Claude Code 插件集 ![](https://img.shields.io/badge/plugins-22-blue)
+# Frad 的 Claude Code 插件集 ![](https://img.shields.io/badge/plugins-23-blue)
 
 [![MIT License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 [![Claude Code](https://img.shields.io/badge/Claude%20Code-v0.6+-purple)](https://claude.ai/code)
@@ -27,6 +27,17 @@ GitHub 项目操作，包含质量门控、TDD 工作流、全面验证，以及
 **安装：**
 ```bash
 claude plugin install github@frad-dotclaude
+```
+
+---
+
+### [git-agent](git-agent/)
+
+以 `git-agent` CLI 为后端的 AI-first Git 自动化。`@git-agent` 执行全面健康检查 —— 检查 gitignore 完整性、commit scope 新鲜度、通过 trufflehog 扫描密钥泄露，以及协同变更索引健康状态。同时提供斜杠命令用于原子提交（`/git-agent:commit`）、协同变更查询（`/git-agent:related`）和工作区初始化（`/git-agent:init`）。
+
+**安装：**
+```bash
+claude plugin install git-agent@frad-dotclaude
 ```
 
 ---

@@ -1,4 +1,4 @@
-# Frad's Claude Code Plugins ![](https://img.shields.io/badge/plugins-22-blue)
+# Frad's Claude Code Plugins ![](https://img.shields.io/badge/plugins-23-blue)
 
 [![MIT License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 [![Claude Code](https://img.shields.io/badge/Claude%20Code-v0.6+-purple)](https://claude.ai/code)
@@ -27,6 +27,17 @@ GitHub project operations with quality gates, TDD workflows, comprehensive valid
 **Installation:**
 ```bash
 claude plugin install github@frad-dotclaude
+```
+
+---
+
+### [git-agent](git-agent/)
+
+AI-first Git CLI automation backed by `git-agent` CLI. `@git-agent` runs a full health scan — checks gitignore completeness, commit scope freshness, secret leaks via trufflehog, and co-change index health. Also includes slash commands for atomic commits (`/git-agent:commit`), co-change queries (`/git-agent:related`), and workspace initialization (`/git-agent:init`).
+
+**Installation:**
+```bash
+claude plugin install git-agent@frad-dotclaude
 ```
 
 ---
