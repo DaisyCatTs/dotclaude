@@ -59,7 +59,11 @@ jobs:
         with:
           python-version: "3.12"
       - name: Install test dependencies
-        run: pip install pytest
+        run: |
+          pip install pytest
+          if [ -f "${{ matrix.plugin }}/requirements.txt" ]; then
+            pip install -r "${{ matrix.plugin }}/requirements.txt"
+          fi
       - name: Run ${{ matrix.plugin }} tests
         run: |
           if [ -d "${{ matrix.plugin }}/tests" ] || [ -d "${{ matrix.plugin }}/test" ] || [ -d "${{ matrix.plugin }}/__tests__" ] || [ -d "${{ matrix.plugin }}/spec" ]; then
