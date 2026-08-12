@@ -1,6 +1,6 @@
 {
   "name": "git-agent",
-  "version": "0.7.1",
+  "version": "0.8.0",
   "displayName": "Git Agent",
   "description": "AI-first Git CLI automation — atomic AI commits, co-change relations (git-agent related), pre-tool hook safety, and workspace initialization",
   "author": {
